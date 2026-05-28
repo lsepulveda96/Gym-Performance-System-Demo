@@ -1,0 +1,14 @@
+{
+  "name": "gym-system-shared-wasm-js",
+  "version": "0.0.0-unspecified",
+  "main": "gym-system-shared-wasm-js.mjs",
+  "types": "gym-system-shared-wasm-js.d.ts",
+  "devDependencies": {},
+  "dependencies": {
+    "@js-joda/core": "3.2.0",
+    "format-util": "^1.0.5"
+  },
+  "peerDependencies": {},
+  "optionalDependencies": {},
+  "bundledDependencies": []
+}

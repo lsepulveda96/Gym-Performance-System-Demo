@@ -1,0 +1,379 @@
+package com.gym.frontend.ui.admin
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.VideocamOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.gym.frontend.ui.theme.OnSurfaceDim
+import com.gym.frontend.ui.theme.TealPrimary
+import kotlinx.browser.document
+import kotlinx.browser.window
+import org.w3c.dom.HTMLDivElement
+import org.w3c.dom.events.Event
+import kotlin.js.JsName
+
+@JsName("kineticQrStart")
+private external fun kineticQrStart(elementId: String)
+
+@JsName("kineticQrStop")
+private external fun kineticQrStop()
+
+@JsName("kineticQrReadDetail")
+private external fun kineticQrReadDetail(event: Event): String
+
+private enum class ScannerPhase {
+    Idle,
+    Starting,
+    Scanning,
+    Error
+}
+
+@Composable
+actual fun QrCameraScanner(
+    modifier: Modifier,
+    isActive: Boolean,
+    onCodeScanned: (String) -> Unit,
+    onError: (String) -> Unit
+) {
+    val elementId = remember { "kinetic-qr-mount-${(0..999_999).random()}" }
+    var windowBounds by remember { mutableStateOf<WindowBounds?>(null) }
+    var phase by remember { mutableStateOf(ScannerPhase.Idle) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var userRequestedCamera by remember { mutableStateOf(false) }
+    var startNonce by remember { mutableStateOf(0) }
+
+    val shouldRunCamera = isActive && userRequestedCamera
+
+    fun stopCameraHardware() {
+        kineticQrStop()
+        removeOverlay(elementId)
+    }
+
+    fun resetToIdle() {
+        stopCameraHardware()
+        userRequestedCamera = false
+        startNonce = 0
+        phase = ScannerPhase.Idle
+        errorMessage = null
+    }
+
+    DisposableEffect(shouldRunCamera) {
+        if (!shouldRunCamera) {
+            stopCameraHardware()
+            onDispose { }
+        } else {
+            val readyListener: (Event) -> Unit = {
+                phase = ScannerPhase.Scanning
+                errorMessage = null
+            }
+            val scanListener: (Event) -> Unit = { event ->
+                onCodeScanned(kineticQrReadDetail(event))
+            }
+            val errorListener: (Event) -> Unit = { event ->
+                val message = kineticQrReadDetail(event)
+                errorMessage = message
+                phase = ScannerPhase.Error
+                onError(message)
+            }
+            window.addEventListener("kinetic-qr-ready", readyListener)
+            window.addEventListener("kinetic-qr-scanned", scanListener)
+            window.addEventListener("kinetic-qr-error", errorListener)
+            onDispose {
+                window.removeEventListener("kinetic-qr-ready", readyListener)
+                window.removeEventListener("kinetic-qr-scanned", scanListener)
+                window.removeEventListener("kinetic-qr-error", errorListener)
+                stopCameraHardware()
+            }
+        }
+    }
+
+    LaunchedEffect(shouldRunCamera, windowBounds, startNonce) {
+        if (!shouldRunCamera || windowBounds == null || startNonce == 0) return@LaunchedEffect
+        phase = ScannerPhase.Starting
+        errorMessage = null
+        ensureOverlay(elementId, windowBounds!!)
+        kineticQrStart(elementId)
+    }
+
+    LaunchedEffect(isActive) {
+        if (!isActive) {
+            resetToIdle()
+        }
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF0A1214),
+        tonalElevation = 2.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { coordinates ->
+                    if (coordinates.size.width <= 0 || coordinates.size.height <= 0) return@onGloballyPositioned
+                    val position = coordinates.positionInWindow()
+                    val next = WindowBounds(
+                        left = position.x,
+                        top = position.y,
+                        width = coordinates.size.width.toFloat(),
+                        height = coordinates.size.height.toFloat()
+                    )
+                    val current = windowBounds
+                    if (current == null ||
+                        kotlin.math.abs(current.left - next.left) > 2f ||
+                        kotlin.math.abs(current.top - next.top) > 2f ||
+                        kotlin.math.abs(current.width - next.width) > 2f ||
+                        kotlin.math.abs(current.height - next.height) > 2f
+                    ) {
+                        windowBounds = next
+                        if (shouldRunCamera && startNonce > 0 && phase == ScannerPhase.Scanning) {
+                            ensureOverlay(elementId, next)
+                        }
+                    }
+                }
+        ) {
+            when {
+                !isActive -> CameraOffPlaceholder("Cámara desactivada. Activá el chip «Camera on» para escanear.")
+                phase == ScannerPhase.Idle && !userRequestedCamera -> CameraIdlePrompt(
+                    onStart = {
+                        userRequestedCamera = true
+                        startNonce++
+                    }
+                )
+                phase == ScannerPhase.Starting -> CameraLoadingPrompt()
+                phase == ScannerPhase.Error -> CameraErrorPrompt(
+                    message = errorMessage ?: "No se pudo usar la cámara.",
+                    onRetry = {
+                        errorMessage = null
+                        stopCameraHardware()
+                        userRequestedCamera = true
+                        startNonce++
+                    },
+                    onCancel = {
+                        resetToIdle()
+                    }
+                )
+                else -> CameraScanningPrompt()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CameraIdlePrompt(onStart: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Outlined.CameraAlt,
+            contentDescription = null,
+            tint = TealPrimary,
+            modifier = Modifier.size(56.dp)
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Escáner QR",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "El navegador va a pedir permiso para usar la cámara. Apuntá al código QR que muestra el miembro en su celular.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = OnSurfaceDim,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = onStart,
+            colors = ButtonDefaults.buttonColors(containerColor = TealPrimary, contentColor = Color.Black)
+        ) {
+            Icon(Icons.Outlined.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.size(8.dp))
+            Text("Abrir cámara y escanear", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun CameraLoadingPrompt() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(color = TealPrimary)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Iniciando cámara…",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Si aparece un cartel del navegador, elegí «Permitir» para continuar.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = OnSurfaceDim,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun CameraScanningPrompt() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        Surface(
+            color = Color.Black.copy(alpha = 0.65f),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                "Escaneando… Centrá el QR del miembro dentro del recuadro.",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraErrorPrompt(
+    message: String,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Outlined.VideocamOff,
+            contentDescription = null,
+            tint = Color(0xFFFF5252),
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Cámara no disponible",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = OnSurfaceDim,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = TealPrimary, contentColor = Color.Black)
+        ) {
+            Text("Reintentar", fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onCancel) {
+            Text("Cancelar", color = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun CameraOffPlaceholder(message: String) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Outlined.VideocamOff,
+            contentDescription = null,
+            tint = OnSurfaceDim,
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = OnSurfaceDim,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+private data class WindowBounds(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float
+)
+
+private fun ensureOverlay(elementId: String, bounds: WindowBounds) {
+    val overlay = (document.getElementById(elementId) as? HTMLDivElement)
+        ?: (document.createElement("div") as HTMLDivElement).also { div ->
+            div.id = elementId
+            document.body!!.appendChild(div)
+        }
+    val style = overlay.style
+    style.position = "fixed"
+    style.left = "${bounds.left}px"
+    style.top = "${bounds.top}px"
+    style.width = "${bounds.width}px"
+    style.height = "${bounds.height}px"
+    style.zIndex = "50"
+    style.setProperty("overflow", "hidden")
+    style.borderRadius = "16px"
+    style.backgroundColor = "#000000"
+    style.setProperty("pointer-events", "none")
+}
+
+private fun removeOverlay(elementId: String) {
+    document.getElementById(elementId)?.remove()
+}

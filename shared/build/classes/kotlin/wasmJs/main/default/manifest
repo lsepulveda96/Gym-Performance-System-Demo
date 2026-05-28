@@ -1,0 +1,11 @@
+abi_version=1.201.0
+builtins_platform=WASM
+compiler_version=2.1.0
+depends=org.jetbrains.kotlinx\:kotlinx-serialization-json org.jetbrains.kotlinx\:kotlinx-datetime org.jetbrains.kotlinx\:kotlinx-coroutines-core org.jetbrains.kotlinx\:kotlinx-serialization-core kotlin org.jetbrains.kotlinx\:atomicfu
+ir_signature_versions=1,2
+jsOutputName=gym-system-shared-wasm-js
+metadata_version=1.4.1
+serializedIrFileFingerprints=3kjm7yamzp8ao.25e1gdj8cpfix
+serializedKlibFingerprint=37b4nk4l38qu4.3uajplp4mcu3e
+unique_name=gym-system\:shared
+wasm_targets=wasm-js
