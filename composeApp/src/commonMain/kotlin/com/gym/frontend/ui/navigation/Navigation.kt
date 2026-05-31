@@ -58,13 +58,7 @@ fun MemberBottomNav(navController: NavHostController) {
                     onClick = {
                         if (currentRoute != item.route) {
                             navController.navigate(item.route) {
-                                // Simplify: just navigate to the route
-                                // If it's home, we might want to clear the stack
-                                if (item.route == "home") {
-                                    popUpTo("home") { inclusive = true }
-                                }
                                 launchSingleTop = true
-                                // Avoid restoring corrupted navigation state between reloads/logouts.
                                 restoreState = false
                             }
                         }
@@ -177,18 +171,25 @@ fun KineticSidebar(
 
             items.forEach { (label, icon, route) ->
                 val selected = currentRoute == route
-                SidebarItem(label, icon, selected, isDark) { navController.navigate(route) }
+                SidebarItem(label, icon, selected, isDark) {
+                    if (currentRoute != route) {
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    }
+                }
             }
             
-            Spacer(Modifier.weight(1f))
-            
+         /*   Spacer(Modifier.weight(1f))
+
             KineticButton(
                 onClick = onAddMember,
                 text = "+ Add New Member",
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             )
-            
-            Spacer(Modifier.height(24.dp))
+
+            Spacer(Modifier.height(24.dp))*/
         }
     }
 }

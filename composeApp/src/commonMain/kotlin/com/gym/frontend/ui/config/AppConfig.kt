@@ -12,7 +12,8 @@ object AppConfig {
     val demoMode: Boolean = PlatformEnv.get(AppConfigKeys.DEMO_MODE)
         ?.trim()
         ?.lowercase()
-        ?.let { it == "true" || it == "1" || it == "yes" }
+        ?.let { it == "true" || it == "1" || it == "yes" } // datos mock de prueba demo
+//        ?.let { it == "false" } // datos de db
         ?: false
 
     fun apiBaseUrl(): String {

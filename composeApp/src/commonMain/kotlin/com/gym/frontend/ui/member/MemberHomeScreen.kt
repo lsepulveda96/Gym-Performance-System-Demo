@@ -30,41 +30,58 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
+import org.jetbrains.compose.ui.tooling.preview.Preview
+
+data class MemberHomeUiState(
+    val member: Member? = null,
+    val userName: String = "Member",
+    val attendanceHistory: List<CheckIn> = emptyList(),
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null
+)
+
 @Composable
-fun MemberHomeContent(onNavigate: (String) -> Unit) {
+fun MemberHomeScreen(onNavigate: (String) -> Unit) {
     val authRepository = remember { AuthRepository(AuthService(), TokenManager()) }
     val membersRepository = remember { MembersRepository(MembersService()) }
 
-    var member by remember { mutableStateOf<Member?>(null) }
-    var attendanceHistory by remember { mutableStateOf<List<CheckIn>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var state by remember { mutableStateOf(MemberHomeUiState()) }
 
     LaunchedEffect(Unit) {
         authRepository.getMe().onSuccess { m ->
-            member = m
-            isLoading = false
-            // Load attendance history
+            // Update state with member first, then load history
+            val userName = m.name ?: authRepository.getUserName() ?: "Member"
+            state = state.copy(member = m, userName = userName, isLoading = false)
+            
             membersRepository.getAttendanceHistory(m.id).onSuccess { logs ->
-                attendanceHistory = logs
+                state = state.copy(attendanceHistory = logs)
             }
         }.onFailure { e ->
-            isLoading = false
-            errorMessage = e.message
+            val userName = authRepository.getUserName() ?: "Member"
+            state = state.copy(userName = userName, isLoading = false, errorMessage = e.message)
         }
     }
 
-    if (isLoading) {
+    MemberHomeContent(
+        state = state,
+        onNavigate = onNavigate
+    )
+}
+
+@Composable
+fun MemberHomeContent(
+    state: MemberHomeUiState,
+    onNavigate: (String) -> Unit
+) {
+    if (state.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = TealPrimary)
         }
         return
     }
 
-    val userName = member?.name ?: authRepository.getUserName() ?: "Member"
-
     // Calculate remaining days
-    val remainingDays = member?.expirationDate?.let { expDate ->
+    val remainingDays = state.member?.expirationDate?.let { expDate ->
         val now = Clock.System.now()
         val diff = expDate.epochSeconds - now.epochSeconds
         (diff / 86400).toInt().coerceAtLeast(0)
@@ -84,7 +101,7 @@ fun MemberHomeContent(onNavigate: (String) -> Unit) {
     ) {
         ScreenHeader(
             title = "Home",
-            subtitle = "Hello, $userName"
+            subtitle = "Hello, ${state.userName}"
         )
         
         Spacer(Modifier.height(24.dp))
@@ -148,12 +165,12 @@ fun MemberHomeContent(onNavigate: (String) -> Unit) {
             ) {
                 Column {
                     Text("YOUR PLAN", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = OnSurfaceDim)
-                    Text(member?.currentPlan ?: "No plan", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(state.member?.currentPlan ?: "No plan", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = LavenderTertiary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        val statusText = if (member?.status == "Active") "Active" else "Expired"
-                        Text(statusText, style = MaterialTheme.typography.bodyMedium, color = if (member?.status == "Active") TealPrimary else Color(0xFFD32F2F))
+                        val statusText = if (state.member?.status == "Active") "Active" else "Expired"
+                        Text(statusText, style = MaterialTheme.typography.bodyMedium, color = if (state.member?.status == "Active") TealPrimary else Color(0xFFD32F2F))
                     }
                 }
                 Box(
@@ -201,16 +218,16 @@ fun MemberHomeContent(onNavigate: (String) -> Unit) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("LAST CHECK-INS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = OnSurfaceDim)
                     Spacer(Modifier.height(16.dp))
-                    if (attendanceHistory.isEmpty()) {
+                    if (state.attendanceHistory.isEmpty()) {
                         Text("No visits yet", style = MaterialTheme.typography.bodySmall, color = OnSurfaceDim)
                     } else {
-                        attendanceHistory.take(2).forEachIndexed { index, checkIn ->
+                        state.attendanceHistory.take(2).forEachIndexed { index, checkIn ->
                             val dateL = checkIn.timestamp.toLocalDateTime(TimeZone.currentSystemDefault())
                             val dateStr = "${dateL.dayOfMonth} ${dateL.month.name.take(3)}"
                             val timeStr = "${dateL.hour.toString().padStart(2, '0')}:${dateL.minute.toString().padStart(2, '0')}"
                             val color = if (index == 0) Color(0xFFD8BAFB) else Color(0xFF85D3DC)
                             ActivityItem(timeStr, dateStr, color)
-                            if (index == 0 && attendanceHistory.size > 1) {
+                            if (index == 0 && state.attendanceHistory.size > 1) {
                                 Spacer(Modifier.height(12.dp))
                             }
                         }
@@ -240,11 +257,11 @@ fun MemberHomeContent(onNavigate: (String) -> Unit) {
                 Spacer(Modifier.width(20.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Visits this week", style = MaterialTheme.typography.labelSmall, color = OnSurfaceDim, fontWeight = FontWeight.Bold)
-                    val limitStr = member?.weeklyAttendanceLimit?.toString() ?: "Unlimited"
-                    Text("${member?.weeklyAttendanceCount ?: 0} / $limitStr", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    val limitStr = state.member?.weeklyAttendanceLimit?.toString() ?: "Unlimited"
+                    Text("${state.member?.weeklyAttendanceCount ?: 0} / $limitStr", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-                member?.weeklyAttendanceLimit?.let { limit ->
-                    val progress = (member?.weeklyAttendanceCount ?: 0).toFloat() / limit
+                state.member?.weeklyAttendanceLimit?.let { limit ->
+                    val progress = (state.member?.weeklyAttendanceCount ?: 0).toFloat() / limit
                     CircularProgressIndicator(
                         progress = progress.coerceIn(0f, 1f),
                         modifier = Modifier.size(32.dp),
@@ -297,5 +314,19 @@ fun ActivityItem(value: String, date: String, color: Color) {
             Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             Text(date, style = MaterialTheme.typography.labelSmall, color = OnSurfaceDim)
         }
+    }
+}
+
+@Preview
+@Composable
+fun MemberHomeContentPreview() {
+    GymTheme {
+        MemberHomeContent(
+            state = MemberHomeUiState(
+                userName = "Jane Doe",
+                isLoading = false
+            ),
+            onNavigate = {}
+        )
     }
 }

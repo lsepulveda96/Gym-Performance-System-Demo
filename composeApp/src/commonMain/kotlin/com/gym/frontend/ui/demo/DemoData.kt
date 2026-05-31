@@ -10,6 +10,7 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * All mock data used when DEMO_MODE=true.
  * No backend calls are made; this data drives every screen.
+ * fuente de la verdad mock
  */
 object DemoData {
 

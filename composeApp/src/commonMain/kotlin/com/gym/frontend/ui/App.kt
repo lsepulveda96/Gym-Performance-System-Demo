@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,40 +48,42 @@ fun App() {
 
     GymTheme(darkTheme = isDark) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            val navController = rememberNavController()
-            var currentRole by remember { 
+            var currentRole by remember {
                 mutableStateOf<UserRole?>(
                     if (authRepository.isSessionActive()) authRepository.getUserRole() else null
-                ) 
+                )
             }
             var requestAddMemberDialog by remember { mutableStateOf(false) }
             val role = currentRole
 
-            fun openAddMemberFlow() {
-                if (role == UserRole.MEMBER) return
-                requestAddMemberDialog = true
-                navController.navigate("members") {
-                    launchSingleTop = true
-                }
-            }
-            
             if (role == null) {
                 LoginScreen(
                     authRepository = authRepository,
                     onLogin = { newRole -> currentRole = newRole }
                 )
             } else {
+                // Fresh NavController per logged-in session avoids stale routes after logout/relogin.
+                val navController = rememberNavController()
+
+                fun openAddMemberFlow() {
+                    if (role == UserRole.MEMBER) return
+                    requestAddMemberDialog = true
+                    navController.navigate("members") {
+                        launchSingleTop = true
+                    }
+                }
+
                 MainScaffold(
-                    role = role, 
+                    role = role,
                     userName = authRepository.getUserName(),
                     navController = navController,
                     tokenManager = tokenManager,
                     requestAddMemberDialog = requestAddMemberDialog,
                     onAddMemberDialogConsumed = { requestAddMemberDialog = false },
                     onAddMember = { openAddMemberFlow() },
-                    onLogout = { 
+                    onLogout = {
                         authRepository.logout()
-                        currentRole = null 
+                        currentRole = null
                     },
                     isDark = isDark,
                     onToggleDark = { isDarkOverride = !isDark }
@@ -148,36 +148,36 @@ fun MainScaffold(
                                 PaddingValues(0.dp)
                             }
 
-                            Column(
+                            // NavHost must NOT be inside verticalScroll — unbounded height = blank screens.
+                            // Each destination handles its own scrolling internally.
+                            NavHost(
+                                navController = navController,
+                                startDestination = "home",
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(contentPadding)
-                                    // Guarantees access to all content when browser zoom/viewport changes.
-                                    .verticalScroll(rememberScrollState())
                             ) {
-                                NavHost(navController = navController, startDestination = "home") {
-                                    composable("home") {
-                                        HomeScreen(role, userName, onNavigate = { navController.navigate(it) })
-                                    }
-                                    composable("members") {
-                                        MembersListScreen(
-                                            requestOpenAddDialog = requestAddMemberDialog,
-                                            onAddDialogRequestConsumed = onAddMemberDialogConsumed
-                                        )
-                                    }
-                                    composable("reception") { ReceptionScreen(tokenManager = tokenManager) }
-                                    composable("checkin") {
-                                        CheckInScreen(onDone = { navController.popBackStack() })
-                                    }
-                                    composable("profile") {
-                                        if (role == UserRole.MEMBER) {
-                                            ProfileScreen(onLogout = onLogout, isDark = isDark, onToggleDark = onToggleDark)
-                                        } else {
-                                            AdminSettingsScreen(onLogout = onLogout)
-                                        }
-                                    }
-                                    composable("alerts") { AlertsScreen() }
+                                composable("home") {
+                                    HomeScreen(role, userName, onNavigate = { navController.navigate(it) })
                                 }
+                                composable("members") {
+                                    MembersListScreen(
+                                        requestOpenAddDialog = requestAddMemberDialog,
+                                        onAddDialogRequestConsumed = onAddMemberDialogConsumed
+                                    )
+                                }
+                                composable("reception") { ReceptionScreen(tokenManager = tokenManager) }
+                                composable("checkin") {
+                                    CheckInScreen(onDone = { navController.popBackStack() })
+                                }
+                                composable("profile") {
+                                    if (role == UserRole.MEMBER) {
+                                        ProfileScreen(onLogout = onLogout, isDark = isDark, onToggleDark = onToggleDark)
+                                    } else {
+                                        AdminSettingsScreen(onLogout = onLogout)
+                                    }
+                                }
+                                composable("alerts") { AlertsScreen() }
                             }
 
                             if (isDesktop) {

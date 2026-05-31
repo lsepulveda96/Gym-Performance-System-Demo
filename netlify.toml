@@ -1,9 +1,7 @@
 [build]
-  command = "./gradlew :composeApp:prepareWebDemo"
-  publish = "composeApp/build/webDemo"
+publish = "composeApp/build/webDemo"
 
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
+from = "/*"
+to = "/index.html"
+status = 200

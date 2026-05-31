@@ -85,6 +85,7 @@ fun AdminDashboardContent() {
             AdminStatCard("Expired Members", summary?.totalExpiredMembers?.toString() ?: "0", "Alert", Modifier.weight(1f), isTrendNegative = true)
             AdminStatCard("Expiring < 7d", summary?.expiringSoonCount?.toString() ?: "0", "Risk", Modifier.weight(1f), isTrendNegative = true)
             AdminStatCard("Today Check-ins", summary?.todayCheckInsCount?.toString() ?: "0", "Daily", Modifier.weight(1f))
+
         }
 
         Spacer(Modifier.height(32.dp))

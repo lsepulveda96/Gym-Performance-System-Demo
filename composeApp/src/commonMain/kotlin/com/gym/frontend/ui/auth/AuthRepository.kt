@@ -39,10 +39,17 @@ class AuthRepository(
         try { UserRole.valueOf(it) } catch (_: Exception) { null }
     }
 
-    fun isSessionActive(): Boolean =
-        tokenManager.getToken() != null
-            && tokenManager.getRole() != null
-            && tokenManager.getUserId() != null
+    fun isSessionActive(): Boolean {
+        val token = tokenManager.getToken()
+        val role = tokenManager.getRole()
+        val userId = tokenManager.getUserId()
+        val active = token != null && role != null && userId != null && getUserRole() != null
+        if (!active && (token != null || role != null || userId != null)) {
+            // Partial/corrupt session — clear so app recovers to login.
+            tokenManager.clear()
+        }
+        return active
+    }
 
     fun getUserId(): String? = tokenManager.getUserId()
 

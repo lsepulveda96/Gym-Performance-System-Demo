@@ -25,7 +25,7 @@ actual class TokenManager {
     }
 
     actual fun getToken(): String? {
-        return safeGet(TOKEN_KEY)
+        return safeGet(TOKEN_KEY)?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     actual fun saveRole(role: String) {
@@ -33,7 +33,7 @@ actual class TokenManager {
     }
 
     actual fun getRole(): String? {
-        return safeGet(USER_ROLE_KEY)
+        return safeGet(USER_ROLE_KEY)?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     actual fun saveUserId(userId: String) {
@@ -41,7 +41,7 @@ actual class TokenManager {
     }
 
     actual fun getUserId(): String? {
-        return safeGet(USER_ID_KEY)
+        return safeGet(USER_ID_KEY)?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     actual fun saveUserName(userName: String) {
