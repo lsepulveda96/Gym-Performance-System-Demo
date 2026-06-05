@@ -22,80 +22,79 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
-import com.gym.frontend.ui.auth.LoginUiState
 import com.gym.frontend.ui.theme.*
 import com.gym.shared.domain.*
 import com.gym.frontend.ui.shared.*
 import gym_system.composeapp.generated.resources.Res
-
 import gym_system.composeapp.generated.resources.img_gym_login
-
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import com.gym.frontend.ui.config.AppConfig
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-
-
-data class LoginUiState(
-    val email: String = "",
-    val password: String = "",
-    val selectedRole: UserRole = UserRole.MEMBER,
-    val isLoading: Boolean = false,
-    val errorMessage: String? = null
-)
+import org.koin.compose.koinInject
 
 @Composable
 fun LoginScreen(
-    authRepository: AuthRepository,
     onLogin: (UserRole) -> Unit
 ) {
-    var state by remember { mutableStateOf(LoginUiState()) }
+    val viewModel = koinInject<LoginViewModel>()
+    val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
 
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf(UserRole.MEMBER) }
+
+    LaunchedEffect(uiState) {
+        if (uiState is LoginUiState.Success) {
+            onLogin((uiState as LoginUiState.Success).role)
+        }
+    }
+
     LoginContent(
-        state = state,
-        onEmailChange = { state = state.copy(email = it, errorMessage = null) },
-        onPasswordChange = { state = state.copy(password = it, errorMessage = null) },
-        //onRoleChange = { state = state.copy(selectedRole = it, errorMessage = null) },
-        onRoleChange = { role -> state = state.copy(selectedRole = role, email = "", password = "", errorMessage = null) },
+        uiState = uiState,
+        email = email,
+        password = password,
+        selectedRole = selectedRole,
+        onEmailChange = { 
+            email = it
+            viewModel.resetState()
+        },
+        onPasswordChange = { 
+            password = it
+            viewModel.resetState()
+        },
+        onRoleChange = { role -> 
+            selectedRole = role
+            email = ""
+            password = ""
+            viewModel.resetState()
+        },
         onLoginClick = {
-            state = state.copy(isLoading = true, errorMessage = null)
-            scope.launch {
-                val result = authRepository.login(LoginRequest(state.email, state.password, state.selectedRole))
-                result.onSuccess { 
-                    state = state.copy(isLoading = false)
-                    onLogin(it.user.role) 
-                }.onFailure { 
-                    state = state.copy(
-                        isLoading = false,
-                        errorMessage = if (state.selectedRole == UserRole.MEMBER) "Invalid email or DNI" else "Invalid credentials"
-                    )
-                }
-            }
+            viewModel.login(scope, LoginRequest(email, password, selectedRole))
         },
         onFillAdminDemo = {
-            state = state.copy(
-                selectedRole = UserRole.OWNER,
-                email = "admin@demo.com",
-                password = "1234",
-                errorMessage = null
-            )
+            selectedRole = UserRole.OWNER
+            email = "admin@demo.com"
+            password = "1234"
+            viewModel.resetState()
         },
         onFillMemberDemo = {
-            state = state.copy(
-                selectedRole = UserRole.MEMBER,
-                email = "member@demo.com",
-                password = "1234",
-                errorMessage = null
-            )
+            selectedRole = UserRole.MEMBER
+            email = "member@demo.com"
+            password = "1234"
+            viewModel.resetState()
         }
     )
 }
 
 @Composable
 fun LoginContent(
-    state: LoginUiState,
+    uiState: LoginUiState,
+    email: String,
+    password: String,
+    selectedRole: UserRole,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onRoleChange: (UserRole) -> Unit,
@@ -104,6 +103,8 @@ fun LoginContent(
     onFillMemberDemo: () -> Unit
 ) {
     val isDark = LocalIsDarkMode.current
+    val errorMessage = (uiState as? LoginUiState.Error)?.message
+    val isLoading = uiState is LoginUiState.Loading
 
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(if (isDark) Color.Black else Color(0xFFF0F2F2)),
@@ -111,8 +112,7 @@ fun LoginContent(
     ) {
         val isDesktop = maxWidth > 900.dp
         
-        if (isDesktop && state.selectedRole == UserRole.OWNER) {
-            // web admin login
+        if (isDesktop && selectedRole == UserRole.OWNER) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -124,21 +124,20 @@ fun LoginContent(
                 shadowElevation = 8.dp
             ) {
                 AtelierAdminLogin(
-                    state = state,
-                    email = state.email,
+                    email = email,
                     onEmailChange = onEmailChange,
-                    password = state.password,
+                    password = password,
                     onPasswordChange = onPasswordChange,
-                    errorMessage = state.errorMessage,
-                    isLoading = state.isLoading,
+                    errorMessage = errorMessage,
+                    isLoading = isLoading,
                     onLogin = onLoginClick,
                     onSwitchToMember = { onRoleChange(UserRole.MEMBER) },
                     onFillAdminDemo = onFillAdminDemo,
-                    onRoleChange = onRoleChange
+                    onRoleChange = onRoleChange,
+                    selectedRole = selectedRole
                 )
             }
         } else {
-            // Mobile Login
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -148,7 +147,6 @@ fun LoginContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Branding
                 Box(modifier = Modifier.size(72.dp).clip(CircleShape).background(Color(0xFF003D44)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.FitnessCenter, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                 }
@@ -157,11 +155,11 @@ fun LoginContent(
                 Text("PERFORMANCE ECOSYSTEM", style = MaterialTheme.typography.labelSmall, color = Color(0xFF003D44), letterSpacing = 2.sp)
 
                 Spacer(Modifier.height(48.dp))
-                RoleSelector(state.selectedRole, onRoleChange)
+                RoleSelector(selectedRole, onRoleChange)
                 Spacer(Modifier.height(40.dp))
 
                 Column(modifier = Modifier.widthIn(max = 400.dp)) {
-                    Text(if (state.selectedRole == UserRole.OWNER) "Admin Login" else "Welcome Back", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(if (selectedRole == UserRole.OWNER) "Admin Login" else "Welcome Back", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("Access your dashboard to track performance.", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceDim)
                     Spacer(Modifier.height(32.dp))
 
@@ -172,11 +170,11 @@ fun LoginContent(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
+                                textColors(TealPrimary)
                                 Text("DEMO MODE", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge, color = TealPrimary)
                                 Text("Use demo credentials or edit below.", style = MaterialTheme.typography.bodySmall, color = OnSurfaceDim)
                                 Spacer(Modifier.height(10.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    //OutlinedButton(onClick = onFillAdminDemo) { Text("Admin demo") }
                                     OutlinedButton(onClick = onFillMemberDemo) { Text("Member demo") }
                                 }
                             }
@@ -184,19 +182,19 @@ fun LoginContent(
                         Spacer(Modifier.height(16.dp))
                     }
 
-                    ModernTextField(value = state.email, onValueChange = onEmailChange, placeholder = "Email Address", icon = Icons.Outlined.Person, errorText = if (state.errorMessage != null) "" else null)
+                    ModernTextField(value = email, onValueChange = onEmailChange, placeholder = "Email Address", icon = Icons.Outlined.Person, errorText = if (errorMessage != null) "" else null)
                     Spacer(Modifier.height(16.dp))
                     ModernTextField(
-                        value = state.password, 
+                        value = password, 
                         onValueChange = onPasswordChange, 
-                        placeholder = if (state.selectedRole == UserRole.MEMBER) "DNI" else "Password", 
-                        isPassword = state.selectedRole != UserRole.MEMBER, 
-                        icon = if (state.selectedRole == UserRole.MEMBER) Icons.Outlined.Badge else Icons.Outlined.Lock, 
-                        errorText = state.errorMessage
+                        placeholder = if (selectedRole == UserRole.MEMBER) "DNI" else "Password", 
+                        isPassword = selectedRole != UserRole.MEMBER, 
+                        icon = if (selectedRole == UserRole.MEMBER) Icons.Outlined.Badge else Icons.Outlined.Lock, 
+                        errorText = errorMessage
                     )
 
                     Spacer(Modifier.height(32.dp))
-                    if (state.isLoading) {
+                    if (isLoading) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = Color(0xFF003D44))
                     } else {
                         KineticButton(onClick = onLoginClick, text = "Sign In", modifier = Modifier.fillMaxWidth().height(56.dp))
@@ -207,10 +205,8 @@ fun LoginContent(
     }
 }
 
-
 @Composable
 fun AtelierAdminLogin(
-    state: LoginUiState,
     email: String,
     onEmailChange: (String) -> Unit,
     password: String,
@@ -221,17 +217,16 @@ fun AtelierAdminLogin(
     onSwitchToMember: () -> Unit,
     onFillAdminDemo: () -> Unit,
     onRoleChange: (UserRole) -> Unit,
+    selectedRole: UserRole
 ) {
     val isDark = LocalIsDarkMode.current
     val atelierTeal = Color(0xFF003D44)
 
     Row(modifier = Modifier.fillMaxSize()) {
-        // --- VISUAL SIDE ---
         Box(
             modifier = Modifier.weight(1.2f).fillMaxHeight().background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFF0F2F2))
         ) {
             Image(
-
                 painter = painterResource(Res.drawable.img_gym_login),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -280,7 +275,6 @@ fun AtelierAdminLogin(
             }
         }
 
-        // --- FORM SIDE ---
         Box(
             modifier = Modifier.weight(1f).fillMaxHeight().background(if (isDark) Level1Section else Color.White),
             contentAlignment = Alignment.Center
@@ -296,7 +290,7 @@ fun AtelierAdminLogin(
                 Text("Enter your credentials to access the Atelier Admin panel.", color = OnSurfaceDim, style = MaterialTheme.typography.bodyMedium)
                 
                 Spacer(Modifier.height(40.dp))
-                RoleSelector(state.selectedRole, onRoleChange)
+                RoleSelector(selectedRole, onRoleChange)
                 Spacer(Modifier.height(40.dp))
 
                 if (AppConfig.demoMode) {
@@ -320,7 +314,6 @@ fun AtelierAdminLogin(
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 OutlinedButton(onClick = onFillAdminDemo) { Text("Admin demo ") }
-                                //OutlinedButton(onClick = onSwitchToMember) { Text("Member login") }
                             }
                         }
                     }
@@ -394,12 +387,18 @@ fun RoleSelector(selectedRole: UserRole, onRoleSelect: (UserRole) -> Unit) {
     }
 }
 
+@Composable
+private fun textColors(color: Color) {}
+
 @Preview()
 @Composable
 fun LoginContentPreview() {
-    GymTheme{
+    GymTheme {
         LoginContent(
-            state = LoginUiState(),
+            uiState = LoginUiState.Idle,
+            email = "",
+            password = "",
+            selectedRole = UserRole.MEMBER,
             onEmailChange = {},
             onPasswordChange = {},
             onRoleChange = {},

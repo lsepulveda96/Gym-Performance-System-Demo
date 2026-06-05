@@ -29,6 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
+import org.koin.compose.koinInject
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PaymentDialog(
@@ -38,40 +40,41 @@ fun PaymentDialog(
 ) {
     val isDark = LocalIsDarkMode.current
     val scope = rememberCoroutineScope()
-    val repository = remember { PaymentsRepository(PaymentsService()) }
-    
-    var history by remember { mutableStateOf<List<Payment>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    
+    val viewModel = koinInject<PaymentDialogViewModel>()
+
+    val historyState by viewModel.historyState.collectAsState()
+    val submitState by viewModel.submitState.collectAsState()
+
+    val history = (historyState as? PaymentHistoryUiState.Success)?.payments ?: emptyList()
+    val isLoadingHistory = historyState is PaymentHistoryUiState.Loading
+    val isSaving = submitState is PaymentSubmitState.Saving
+
+    var showSuccess by remember { mutableStateOf(false) }
+
     var selectedPlanId by remember { mutableStateOf(plans.find { it.name == member.currentPlan }?.id ?: plans.firstOrNull()?.id ?: "") }
     var amount by remember { mutableStateOf(plans.find { it.id == selectedPlanId }?.price?.toString() ?: "") }
     var selectedMethod by remember { mutableStateOf("Cash") }
     val methods = listOf("Cash", "Transfer")
-    
-    var isSaving by remember { mutableStateOf(false) }
 
-    // Update amount when plan changes
+    // Update amount when plan or method changes
     LaunchedEffect(selectedPlanId, selectedMethod) {
         val basePrice = plans.find { it.id == selectedPlanId }?.price ?: 0.0
         val finalPrice = if (selectedMethod == "Cash") basePrice * 0.9 else basePrice
         amount = finalPrice.toInt().toString()
     }
 
-    fun refreshHistory() {
-        isLoading = true
-        scope.launch {
-            repository.getMemberPayments(member.id).onSuccess {
-                history = it
-                isLoading = false
-            }.onFailure {
-                isLoading = false
-            }
+    LaunchedEffect(member.id) {
+        viewModel.loadHistory(member.id, scope)
+    }
+
+    // React to submit state
+    LaunchedEffect(submitState) {
+        if (submitState is PaymentSubmitState.Success) {
+            showSuccess = true
+            viewModel.resetSubmitState()
         }
     }
 
-    LaunchedEffect(member.id) {
-        refreshHistory()
-    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -104,7 +107,6 @@ fun PaymentDialog(
                 Spacer(Modifier.height(32.dp))
 
                 Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                    var showSuccess by remember { mutableStateOf(false) }
 
                     // --- REGISTER PAYMENT FORM ---
                     Column(modifier = Modifier.weight(1.2f)) {
@@ -204,19 +206,11 @@ fun PaymentDialog(
                                 onClick = {
                                     val amtValue = amount.toDoubleOrNull() ?: 0.0
                                     if (amtValue > 0) {
-                                        isSaving = true
-                                        scope.launch {
-                                            repository.createPayment(PaymentRequest(member.id, amtValue, selectedMethod))
-                                                .onSuccess {
-                                                    amount = ""
-                                                    isSaving = false
-                                                    showSuccess = true
-                                                    refreshHistory()
-                                                }
-                                                .onFailure {
-                                                    isSaving = false
-                                                }
-                                        }
+                                        viewModel.createPayment(
+                                            PaymentRequest(member.id, amtValue, selectedMethod),
+                                            member.id,
+                                            scope
+                                        )
                                     }
                                 },
                                 text = if (isSaving) "Saving..." else "Confirm Payment",
@@ -234,7 +228,7 @@ fun PaymentDialog(
                         }
                         Spacer(Modifier.height(16.dp))
                         
-                        if (isLoading) {
+                        if (isLoadingHistory) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = TealPrimary)
                             }
@@ -260,10 +254,7 @@ fun PaymentDialog(
 }
 
 @Composable
-fun PaymentHistoryItem(payment: Payment, isDark: Boolean) {
-    val dateLocal = payment.paymentDate.toLocalDateTime(TimeZone.currentSystemDefault())
-    val expLocal = payment.expirationDate.toLocalDateTime(TimeZone.currentSystemDefault())
-    
+fun PaymentHistoryItem(payment: PaymentHistoryItemUiModel, isDark: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -271,12 +262,12 @@ fun PaymentHistoryItem(payment: Payment, isDark: Boolean) {
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("${dateLocal.dayOfMonth} ${dateLocal.month.name.take(3)}, ${dateLocal.year}", fontWeight = FontWeight.Bold)
+                Text(payment.paymentDateStr, fontWeight = FontWeight.Bold)
                 Text("Method: ${payment.method}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceDim)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("$${payment.amount.toInt()}", fontWeight = FontWeight.Bold, color = TealPrimary)
-                Text("Expires: ${expLocal.dayOfMonth}/${expLocal.monthNumber}/${expLocal.year}", style = MaterialTheme.typography.labelSmall, color = Color(0xFFD32F2F))
+                Text(payment.amountStr, fontWeight = FontWeight.Bold, color = TealPrimary)
+                Text("Expires: ${payment.expirationDateStr}", style = MaterialTheme.typography.labelSmall, color = Color(0xFFD32F2F))
             }
         }
     }

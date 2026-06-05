@@ -29,60 +29,35 @@ import kotlinx.coroutines.launch
 @Composable
 fun ReceptionScreen(tokenManager: TokenManager = TokenManager()) {
     val scope = rememberCoroutineScope()
-    val accessService = remember(tokenManager) { AccessService(tokenManager) }
+    val viewModel = remember(tokenManager) { ReceptionViewModel(AccessService(tokenManager)) }
+    val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val isLoading = uiState is ReceptionUiState.Validating
+    val validationResult = (uiState as? ReceptionUiState.Validated)?.result
+
     var qrInput by remember { mutableStateOf("") }
-    var validationResult by remember { mutableStateOf<AccessValidationResponse?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
     var isCameraActive by remember { mutableStateOf(true) }
     var cameraErrorHint by remember { mutableStateOf<String?>(null) }
-    var lastScannedCode by remember { mutableStateOf<String?>(null) }
 
-    fun applyValidationResult(result: AccessValidationResponse) {
-        validationResult = result
-        qrInput = ""
+    // Show snackbar on error results
+    LaunchedEffect(uiState) {
+        if (uiState is ReceptionUiState.Validated && validationResult?.success == false) {
+            snackbarHostState.showSnackbar(validationResult.message)
+        }
     }
 
     fun validateCode(code: String, fromCamera: Boolean = false) {
-        val trimmed = code.trim()
-        if (trimmed.isEmpty()) {
+        if (code.trim().isEmpty()) {
             scope.launch { snackbarHostState.showSnackbar("No QR code detected") }
             return
         }
-        if (fromCamera && trimmed == lastScannedCode && validationResult != null) {
-            return
-        }
-
-        isLoading = true
-        validationResult = null
-        scope.launch {
-            try {
-                accessService.validateAccess(trimmed)
-                    .onSuccess { response ->
-                        lastScannedCode = trimmed
-                        applyValidationResult(response)
-                    }
-                    .onFailure { e ->
-                        lastScannedCode = trimmed
-                        applyValidationResult(
-                            AccessValidationResponse(
-                                success = false,
-                                message = e.message ?: "Validation failed"
-                            )
-                        )
-                        snackbarHostState.showSnackbar(e.message ?: "Validation failed")
-                    }
-            } finally {
-                isLoading = false
-            }
-        }
+        viewModel.validateCode(code, fromCamera, scope)
     }
 
     fun clearResult() {
         qrInput = ""
-        validationResult = null
-        lastScannedCode = null
+        viewModel.clearResult()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

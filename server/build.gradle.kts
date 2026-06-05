@@ -21,6 +21,18 @@ dependencies {
     implementation(libs.h2)
     implementation(libs.logback)
     implementation(libs.kotlinx.datetime)
+    implementation("io.insert-koin:koin-ktor:4.0.0")
+    implementation("io.insert-koin:koin-logger-slf4j:4.0.0")
+
+    testImplementation(kotlin("test-junit5"))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 application {

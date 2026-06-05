@@ -22,27 +22,43 @@ import com.gym.frontend.ui.shared.*
 import com.gym.shared.domain.DashboardSummary
 import androidx.compose.runtime.*
 
+import org.koin.compose.koinInject
+
 @Composable
 fun AdminDashboardContent() {
     val isDark = LocalIsDarkMode.current
     val scope = rememberCoroutineScope()
-    val repository = remember { DashboardRepository(DashboardService()) }
-    
-    var summary by remember { mutableStateOf<DashboardSummary?>(null) }
-    var isLoading by remember { mutableStateOf<Boolean>(true) }
+    val viewModel = koinInject<AdminDashboardViewModel>()
+    val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        repository.getSummary().onSuccess {
-            summary = it
-            isLoading = false
-        }.onFailure {
-            isLoading = false
-        }
+        viewModel.loadData(scope)
     }
+
+    val uiModel: AdminDashboardUiModel? = (uiState as? AdminDashboardUiState.Success)?.uiModel
+    val isLoading = uiState is AdminDashboardUiState.Loading
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         if (isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp), color = TealPrimary, trackColor = TealPrimary.copy(alpha = 0.1f))
+        }
+        if (uiState is AdminDashboardUiState.Error) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        (uiState as AdminDashboardUiState.Error).message,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.loadData(scope) }) { Text("Retry") }
+                }
+            }
         }
 
         Column(modifier = Modifier.padding(24.dp)) {
@@ -81,10 +97,10 @@ fun AdminDashboardContent() {
 
         // --- STATS GRID ---
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            AdminStatCard("Active Members", summary?.totalActiveMembers?.toString() ?: "0", "Live", Modifier.weight(1f))
-            AdminStatCard("Expired Members", summary?.totalExpiredMembers?.toString() ?: "0", "Alert", Modifier.weight(1f), isTrendNegative = true)
-            AdminStatCard("Expiring < 7d", summary?.expiringSoonCount?.toString() ?: "0", "Risk", Modifier.weight(1f), isTrendNegative = true)
-            AdminStatCard("Today Check-ins", summary?.todayCheckInsCount?.toString() ?: "0", "Daily", Modifier.weight(1f))
+            AdminStatCard("Active Members", uiModel?.activeMembers ?: "0", "Live", Modifier.weight(1f))
+            AdminStatCard("Expired Members", uiModel?.expiredMembers ?: "0", "Alert", Modifier.weight(1f), isTrendNegative = true)
+            AdminStatCard("Expiring < 7d", uiModel?.expiringSoon ?: "0", "Risk", Modifier.weight(1f), isTrendNegative = true)
+            AdminStatCard("Today Check-ins", uiModel?.todayCheckIns ?: "0", "Daily", Modifier.weight(1f))
 
         }
 
@@ -112,7 +128,7 @@ fun AdminDashboardContent() {
                     Spacer(Modifier.weight(1f))
                     // Revenue Flow Chart
                     Row(modifier = Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                        val revenueData = summary?.revenueFlow ?: emptyList()
+                        val revenueData = uiModel?.revenueFlow ?: emptyList()
                         val maxRevenue = revenueData.map { it.amount }.maxOrNull() ?: 1.0
                         
                         revenueData.forEachIndexed { index, data ->
@@ -152,14 +168,14 @@ fun AdminDashboardContent() {
                     }
                     Spacer(Modifier.height(24.dp))
                     
-                    val riskMembers = summary?.overdueRisk ?: emptyList()
+                    val riskMembers = uiModel?.overdueRisk ?: emptyList()
                     if (riskMembers.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("No immediate risks", color = OnSurfaceDim, style = MaterialTheme.typography.bodySmall)
                         }
                     } else {
                         riskMembers.forEach { risk ->
-                            RiskItem(risk.name, "Expires in ${risk.daysRemaining} days", "$${risk.amount.toInt()}")
+                            RiskItem(risk.name, risk.details, risk.amountStr)
                         }
                     }
                     
@@ -193,7 +209,7 @@ fun AdminDashboardContent() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(color = Color(0xFF102A2B), shape = RoundedCornerShape(12.dp)) {
                             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(summary?.todayCheckInsCount?.toString() ?: "0", color = TealPrimary, fontWeight = FontWeight.Bold)
+                                Text(uiModel?.todayCheckIns ?: "0", color = TealPrimary, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.width(8.dp))
                                 Icon(Icons.Outlined.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             }
@@ -204,19 +220,12 @@ fun AdminDashboardContent() {
                 }
                 Spacer(Modifier.height(24.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    val arrivals = summary?.recentArrivals ?: emptyList()
+                    val arrivals = uiModel?.recentArrivals ?: emptyList()
                     if (arrivals.isEmpty()) {
                         Text("No recent arrivals", color = OnSurfaceDim, modifier = Modifier.padding(16.dp))
                     } else {
                         arrivals.forEach { arrival ->
-                            val now = kotlinx.datetime.Clock.System.now()
-                            val diff = now.minus(arrival.timestamp).inWholeMinutes
-                            val timeStr = when {
-                                diff < 1 -> "JUST NOW"
-                                diff < 60 -> "${diff}M AGO"
-                                else -> "${diff/60}H AGO"
-                            }
-                            ArrivalItem(arrival.name, arrival.plan, timeStr, Modifier.weight(1f))
+                            ArrivalItem(arrival.name, arrival.plan, arrival.relativeTime, Modifier.weight(1f))
                         }
                     }
                 }

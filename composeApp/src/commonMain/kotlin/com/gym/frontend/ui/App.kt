@@ -38,13 +38,20 @@ import com.gym.frontend.ui.admin.*
 import org.jetbrains.compose.resources.imageResource
 
 
+import org.koin.compose.KoinApplication
+import org.koin.compose.koinInject
+import com.gym.frontend.di.frontendModule
+
 @Composable
 fun App() {
-    var isDarkOverride by remember { mutableStateOf<Boolean?>(null) }
-    val isDark = isDarkOverride ?: isSystemInDarkTheme()
-    
-    val tokenManager = remember { TokenManager() }
-    val authRepository = remember { AuthRepository(AuthService(), tokenManager) }
+    KoinApplication(application = {
+        modules(frontendModule)
+    }) {
+        var isDarkOverride by remember { mutableStateOf<Boolean?>(null) }
+        val isDark = isDarkOverride ?: isSystemInDarkTheme()
+        
+        val tokenManager = koinInject<TokenManager>()
+        val authRepository = koinInject<AuthRepository>()
 
     GymTheme(darkTheme = isDark) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -58,7 +65,6 @@ fun App() {
 
             if (role == null) {
                 LoginScreen(
-                    authRepository = authRepository,
                     onLogin = { newRole -> currentRole = newRole }
                 )
             } else {
@@ -90,6 +96,7 @@ fun App() {
                 )
             }
         }
+    }
     }
 }
 
@@ -180,7 +187,7 @@ fun MainScaffold(
                                 composable("alerts") { AlertsScreen() }
                             }
 
-                            if (isDesktop) {
+                            /*if (isDesktop) {
                                 ExtendedFloatingActionButton(
                                     onClick = onAddMember,
                                     modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
@@ -190,7 +197,7 @@ fun MainScaffold(
                                 ) {
                                     Text("+ Quick Action")
                                 }
-                            }
+                            }*/
                         }
                     }
                 }

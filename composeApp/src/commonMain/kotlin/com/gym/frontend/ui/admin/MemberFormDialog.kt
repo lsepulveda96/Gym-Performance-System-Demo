@@ -72,7 +72,11 @@ fun MemberFormDialog(
     // Update amount when plan changes
     LaunchedEffect(selectedPlanId, selectedPaymentMethod) {
         val basePrice = plans.find { it.id == selectedPlanId }?.price ?: 0.0
-        val finalPrice = if (selectedPaymentMethod == "Cash") basePrice * 0.9 else basePrice
+        val finalPrice = if (selectedPaymentMethod == "Cash"){
+            basePrice * 0.9
+            //"10% cash discount applied"
+
+        } else basePrice
         paymentAmount = finalPrice.toInt().toString()
     }
 
@@ -278,6 +282,10 @@ fun MemberFormDialog(
                                     onValueChange = { /* Read only */ },
                                     placeholder = "Amount to Pay",
                                     readOnly = true,
+                                )
+
+                                Text(
+                                    if (selectedPaymentMethod == "Cash") " 10% cash discount applied" else "", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50)
                                 )
 
                                 Text("Payment Method", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)

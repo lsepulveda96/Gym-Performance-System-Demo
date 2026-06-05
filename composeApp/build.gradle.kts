@@ -46,6 +46,8 @@ kotlin {
             implementation(libs.ktor.client.auth)
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.wasm.js)
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
         }
     }
 }

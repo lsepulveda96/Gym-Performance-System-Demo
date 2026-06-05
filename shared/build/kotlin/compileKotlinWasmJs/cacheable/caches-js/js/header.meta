@@ -1,2 +1,2 @@
 
-<gym-system:shared>:com.gym.shared.domain
+<gym-system:shared>:com.gym.shared.domain:com.gym.shared.domain.result

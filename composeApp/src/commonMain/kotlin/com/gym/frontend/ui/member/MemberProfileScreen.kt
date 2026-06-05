@@ -29,7 +29,6 @@ import com.gym.frontend.ui.admin.MembersRepository
 import com.gym.frontend.ui.admin.MembersService
 import com.gym.frontend.ui.admin.PaymentsService
 import com.gym.frontend.ui.admin.PaymentsRepository
-import com.gym.shared.domain.Payment
 import androidx.compose.runtime.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -42,54 +41,51 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
-import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(onLogout: () -> Unit, isDark: Boolean, onToggleDark: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val authRepository = remember { AuthRepository(AuthService(), TokenManager()) }
-    val membersRepository = remember { MembersRepository(MembersService()) }
-    val paymentsRepository = remember { PaymentsRepository(PaymentsService()) }
-    var member by remember { mutableStateOf<Member?>(null) }
-    var attendanceHistory by remember { mutableStateOf<List<CheckIn>>(emptyList()) }
-    var payments by remember { mutableStateOf<List<Payment>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var isAttendanceLoading by remember { mutableStateOf(false) }
-    var isPaymentsLoading by remember { mutableStateOf(false) }
+    val viewModel = remember {
+        ProfileViewModel(
+            authRepository = AuthRepository(AuthService(), TokenManager()),
+            membersRepository = MembersRepository(MembersService()),
+            paymentsRepository = PaymentsRepository(PaymentsService())
+        )
+    }
+    val uiState by viewModel.uiState.collectAsState()
+
+    val successState = uiState as? ProfileUiState.Success
+    val member = successState?.member
+    val attendanceHistory = successState?.attendanceHistory ?: emptyList()
+    val payments = successState?.payments ?: emptyList()
+    val isPaymentsLoading = successState?.isPaymentsLoading ?: false
+    val isAttendanceLoading = successState?.isAttendanceLoading ?: false
 
     LaunchedEffect(Unit) {
-        authRepository.getMe().onSuccess {
-            member = it
-            isLoading = false
-            
-            // Load attendance
-            isAttendanceLoading = true
-            membersRepository.getAttendanceHistory(it.id).onSuccess { logs ->
-                attendanceHistory = logs
-                isAttendanceLoading = false
-            }.onFailure {
-                isAttendanceLoading = false
-            }
-
-            // Load payments
-            isPaymentsLoading = true
-            paymentsRepository.getMemberPayments(it.id).onSuccess { paymentList ->
-                payments = paymentList
-                isPaymentsLoading = false
-            }.onFailure {
-                isPaymentsLoading = false
-            }
-        }.onFailure {
-            isLoading = false
-        }
+        viewModel.loadData(scope)
     }
 
-    if (isLoading) {
+    if (uiState is ProfileUiState.Loading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = TealPrimary)
         }
         return
     }
+
+    if (uiState is ProfileUiState.Error) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(16.dp))
+                Text((uiState as ProfileUiState.Error).message, color = OnSurfaceDim)
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = { viewModel.loadData(scope) }) { Text("Retry") }
+            }
+        }
+        return
+    }
+
+
 
     Column(
         modifier = Modifier
@@ -153,16 +149,12 @@ fun ProfileScreen(onLogout: () -> Unit, isDark: Boolean, onToggleDark: () -> Uni
             AvatarSelectionDialog(
                 onDismiss = { showAvatarPicker = false },
                 onAvatarSelected = { avatarName ->
-                    scope.launch {
-                        authRepository.updateProfileImage(avatarName).onSuccess {
-                            // Update local state
-                            member = member?.copy(profileImageUrl = avatarName)
-                            showAvatarPicker = false
-                        }
-                    }
+                    showAvatarPicker = false
+                    viewModel.updateProfileImage(avatarName, scope)
                 }
             )
         }
+
 
         // --- CURRENT PLAN CARD (Teal Gradient) ---
         val expDateStr = member?.expirationDate?.let {

@@ -36,6 +36,8 @@ import androidx.compose.foundation.Image
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.layout.ContentScale
 
+import org.koin.compose.koinInject
+
 @Composable
 fun MembersListScreen(
     requestOpenAddDialog: Boolean = false,
@@ -43,60 +45,29 @@ fun MembersListScreen(
 ) {
     val isDark = LocalIsDarkMode.current
     val scope = rememberCoroutineScope()
-    // In a real app, this would be injected via Koin
-    val repository = remember { MembersRepository(MembersService()) }
-    
-    var members by remember { mutableStateOf<List<Member>>(emptyList()) }
-    var plans by remember { mutableStateOf<List<GymPlan>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val viewModel = koinInject<MembersListViewModel>()
+
+    val uiState by viewModel.uiState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val membersUiModels = (uiState as? MembersListUiState.Success)?.members ?: emptyList()
+    val plans = (uiState as? MembersListUiState.Success)?.plans ?: emptyList()
+    val isLoading = uiState is MembersListUiState.Loading
+    val errorMessage = (uiState as? MembersListUiState.Error)?.message
 
     var showDialog by remember { mutableStateOf(false) }
     var editingMember by remember { mutableStateOf<Member?>(null) }
 
     // --- Search & Sort State ---
-    var searchQuery by remember { mutableStateOf("") }
-    var currentSortColumn by remember { mutableStateOf("JOIN_DATE") }
-    var sortAscending by remember { mutableStateOf(false) }
-    var statusFilter by remember { mutableStateOf<String?>(null) }
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val currentSortColumn by viewModel.currentSortColumn.collectAsState()
+    val sortAscending by viewModel.sortAscending.collectAsState()
+    val statusFilter by viewModel.statusFilter.collectAsState()
     var showFilterMenu by remember { mutableStateOf(false) }
 
-    val filteredMembers = remember(members, searchQuery, currentSortColumn, sortAscending, statusFilter) {
-        members
-            .filter { 
-                (statusFilter == null || it.status.uppercase() == statusFilter) &&
-                (it.name.contains(searchQuery, ignoreCase = true) || it.email.contains(searchQuery, ignoreCase = true))
-            }
-            .sortedWith { a, b ->
-                val factor = if (sortAscending) 1 else -1
-                when (currentSortColumn) {
-                    "NAME" -> factor * a.name.compareTo(b.name)
-                    "STATUS" -> factor * a.status.compareTo(b.status)
-                    "PLAN" -> factor * (a.currentPlan ?: "").compareTo(b.currentPlan ?: "")
-                    else -> factor * a.joinDate.compareTo(b.joinDate)
-                }
-            }
-    }
-
-    fun refresh() {
-        isLoading = true
-        scope.launch {
-            repository.getMembers()
-                .onSuccess { 
-                    members = it 
-                    isLoading = false
-                }
-                .onFailure { 
-                    errorMessage = it.message ?: "Failed to load members"
-                    isLoading = false
-                }
-            repository.getPlans().onSuccess { plans = it }
-        }
-    }
-
     LaunchedEffect(Unit) {
-        refresh()
+        viewModel.loadData(scope)
     }
 
     LaunchedEffect(requestOpenAddDialog) {
@@ -104,6 +75,22 @@ fun MembersListScreen(
             editingMember = null
             showDialog = true
             onAddDialogRequestConsumed()
+        }
+    }
+
+    // React to action state changes
+    LaunchedEffect(actionState) {
+        when (actionState) {
+            is MembersListActionState.SaveSuccess -> {
+                showDialog = false
+                editingMember = null
+                viewModel.resetActionState()
+            }
+            is MembersListActionState.SaveError -> {
+                snackbarHostState.showSnackbar((actionState as MembersListActionState.SaveError).message)
+                viewModel.resetActionState()
+            }
+            else -> Unit
         }
     }
 
@@ -147,7 +134,7 @@ fun MembersListScreen(
                             Spacer(Modifier.width(8.dp))
                             androidx.compose.foundation.text.BasicTextField(
                                 value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                                onValueChange = { viewModel.setSearchQuery(it) },
                                 modifier = Modifier.fillMaxWidth(),
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(TealPrimary),
@@ -181,15 +168,15 @@ fun MembersListScreen(
                         ) {
                             DropdownMenuItem(
                                 text = { Text("All Members") },
-                                onClick = { statusFilter = null; showFilterMenu = false }
+                                onClick = { viewModel.setStatusFilter(null); showFilterMenu = false }
                             )
                             DropdownMenuItem(
                                 text = { Text("Active") },
-                                onClick = { statusFilter = "ACTIVE"; showFilterMenu = false }
+                                onClick = { viewModel.setStatusFilter("ACTIVE"); showFilterMenu = false }
                             )
                             DropdownMenuItem(
                                 text = { Text("Inactive") },
-                                onClick = { statusFilter = "INACTIVE"; showFilterMenu = false }
+                                onClick = { viewModel.setStatusFilter("INACTIVE"); showFilterMenu = false }
                             )
                         }
                     }
@@ -205,37 +192,28 @@ fun MembersListScreen(
                 }
             }
 
-    var isDialogSuccess by remember { mutableStateOf(false) }
+    val isDialogSuccess = actionState is MembersListActionState.SaveSuccess
+    val dialogErrorMessage = (actionState as? MembersListActionState.SaveError)?.message
 
     if (showDialog) {
         MemberFormDialog(
             member = editingMember,
             plans = plans,
-            onDismiss = { 
-                showDialog = false 
-                isDialogSuccess = false
-                errorMessage = null 
+            onDismiss = {
+                showDialog = false
+                editingMember = null
+                viewModel.resetActionState()
             },
             isSuccess = isDialogSuccess,
             onSave = { request ->
-                errorMessage = null
-                scope.launch {
-                    val result = if (editingMember == null) {
-                        repository.createMember(request)
-                    } else {
-                        repository.updateMember(editingMember!!.id, request)
-                    }
-                    result.onSuccess {
-                        isDialogSuccess = true
-                        errorMessage = null
-                        refresh()
-                    }.onFailure {
-                        errorMessage = it.message ?: "Action failed"
-                    }
+                if (editingMember == null) {
+                    viewModel.createMember(request, scope)
+                } else {
+                    viewModel.updateMember(editingMember!!.id, request, scope)
                 }
             },
-            errorMessage = errorMessage,
-            onClearError = { errorMessage = null }
+            errorMessage = dialogErrorMessage,
+            onClearError = { viewModel.resetActionState() }
         )
     }
 
@@ -296,12 +274,7 @@ fun MembersListScreen(
                 Column(modifier = Modifier.padding(vertical = 16.dp)) {
                     // Table Header
                     val toggleSort: (String) -> Unit = { col ->
-                        if (currentSortColumn == col) {
-                            sortAscending = !sortAscending
-                        } else {
-                            currentSortColumn = col
-                            sortAscending = true
-                        }
+                        viewModel.toggleSort(col)
                     }
 
                     Row(modifier = Modifier.padding(horizontal = 32.dp, vertical = 20.dp)) {
@@ -321,37 +294,22 @@ fun MembersListScreen(
                         }
                         errorMessage != null -> {
                             ErrorState(errorMessage!!, onRetry = {
-                                scope.launch {
-                                    isLoading = true
-                                    errorMessage = null
-                                    repository.getMembers()
-                                        .onSuccess { members = it; isLoading = false }
-                                        .onFailure { errorMessage = it.message; isLoading = false }
-                                }
+                                viewModel.loadData(scope)
                             })
                         }
-                        members.isEmpty() -> {
+                        membersUiModels.isEmpty() -> {
                             EmptyState(isDark)
                         }
                         else -> {
-                            filteredMembers.forEach { member ->
-                                val dateStr = try {
-                                    val local = member.joinDate.toLocalDateTime(TimeZone.currentSystemDefault())
-                                    "${local.month.name.take(3)} ${local.dayOfMonth}, ${local.year}"
-                                } catch (e: Exception) { "Jan 12, 2024" }
-                                
-                                val expDateStr = member.expirationDate?.let {
-                                    val local = it.toLocalDateTime(TimeZone.currentSystemDefault())
-                                    "${local.dayOfMonth}/${local.monthNumber}/${local.year}"
-                                } ?: "No payment"
-
+                            membersUiModels.forEach { item ->
+                                val member = item.member
                                 MemberRow(
                                     name = member.name,
                                     email = member.email,
                                     status = member.status.uppercase(),
                                     plan = member.currentPlan ?: "Standard Plan",
-                                    expirationDate = expDateStr,
-                                    date = dateStr,
+                                    expirationDate = item.expirationDateStr,
+                                    date = item.joinDateStr,
                                     profileImageUrl = member.profileImageUrl,
                                     lastCheckin = "Not available",
                                     location = "STRENGTH STUDIO",
@@ -366,13 +324,13 @@ fun MembersListScreen(
                     }
                     
                     // Pagination
-                    if (!isLoading && errorMessage == null && members.isNotEmpty()) {
+                    if (!isLoading && errorMessage == null && membersUiModels.isNotEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 24.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Showing ${filteredMembers.size} members", style = MaterialTheme.typography.bodySmall, color = OnSurfaceDim)
+                            Text("Showing ${membersUiModels.size} members", style = MaterialTheme.typography.bodySmall, color = OnSurfaceDim)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("‹", fontSize = 20.sp, color = OnSurfaceNeutral)
                                 PaginationDot("1", true)

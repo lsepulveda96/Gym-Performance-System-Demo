@@ -182,6 +182,11 @@ fun Application.module() {
         }
     }
     
+    install(org.koin.ktor.plugin.Koin) {
+        org.koin.core.logger.PrintLogger()
+        modules(com.gym.server.di.appModule)
+    }
+
     configureSerialization()
     configureHTTP()
     configureSecurity()
