@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -119,7 +121,7 @@ fun SettingsCard(title: String, description: String, icon: androidx.compose.ui.g
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (isDark) OnSurfaceNeutral else Color.Black)
                 Text(description, style = MaterialTheme.typography.bodySmall, color = OnSurfaceDim)
             }
-            Text("→", color = OnSurfaceDim, style = MaterialTheme.typography.titleLarge)
+            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = OnSurfaceDim)
         }
     }
 }

@@ -17,15 +17,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.*
 import com.gym.frontend.ui.theme.*
@@ -145,7 +148,12 @@ fun MainScaffold(
                             .background(MaterialTheme.colorScheme.background)
                     ) {
                         if (isDesktop) {
-                            AdminTopBar(userName = userName, role = role, onToggleDark = onToggleDark)
+                            AdminTopBar(
+                                userName = userName,
+                                role = role,
+                                onToggleDark = onToggleDark,
+                                onLogout = onLogout
+                            )
                         }
 
                         Box(modifier = Modifier.fillMaxSize()) {
@@ -207,8 +215,15 @@ fun MainScaffold(
 }
 
 @Composable
-fun AdminTopBar(userName: String?, role: UserRole, onToggleDark: () -> Unit) {
+fun AdminTopBar(
+    userName: String?,
+    role: UserRole,
+    onToggleDark: () -> Unit,
+    onLogout: () -> Unit
+) {
     val isDark = LocalIsDarkMode.current
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -249,65 +264,73 @@ fun AdminTopBar(userName: String?, role: UserRole, onToggleDark: () -> Unit) {
                 )
             }
 
-//            Row(verticalAlignment = Alignment.CenterVertically) {
-              /*  Column(horizontalAlignment = Alignment.End) {
-                    Text(userName ?: "Admin", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Text(if (role == UserRole.RECEPTION) "RECEPTIONIST" else "OWNER", style = MaterialTheme.typography.labelSmall, color = OnSurfaceDim)
-                }*/
-//                Spacer(Modifier.width(12.dp))
-
-
-            Box(
-                modifier = Modifier.size(40.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-
-                // Avatar principal (círculo gris)
-
+            Box {
                 Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable { }.padding(8.dp),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Perfil",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(40.dp * 0.5f)
-                    )
+                    // Avatar principal (círculo gris)
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable { showMenu = true }.padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Perfil",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(40.dp * 0.5f)
+                        )
+                    }
+
+                    // Badge (círculo blanco con sombra)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(40.dp * 0.35f)
+                            .shadow(
+                                elevation = 6.dp,
+                                shape = CircleShape,
+                                clip = false
+                            )
+                            .clip(CircleShape)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Desplegar",
+                            tint = Color.Black,
+                            modifier = Modifier.size(40.dp * 0.2f)
+                        )
+                    }
                 }
 
-                // Badge (círculo blanco con sombra)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(40.dp * 0.35f)
-                        .shadow(
-                            elevation = 6.dp,
-                            shape = CircleShape,
-                            clip = false
-                        )
-                        .clip(CircleShape)
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    offset = DpOffset(0.dp, 8.dp),
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Desplegar",
-                        tint = Color.Black,
-                        modifier = Modifier.size(40.dp * 0.2f)
+                    DropdownMenuItem(
+                        text = { Text("Profile", fontWeight = FontWeight.Medium) },
+                        onClick = { showMenu = false },
+                        leadingIcon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(20.dp)) }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
+                    DropdownMenuItem(
+                        text = { Text("Log out", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
+                        onClick = {
+                            showMenu = false
+                            onLogout()
+                        },
+                        leadingIcon = { Icon(Icons.Default.ExitToApp, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) }
                     )
                 }
             }
-
-
-
-//            }
         }
-
-
     }
 }
