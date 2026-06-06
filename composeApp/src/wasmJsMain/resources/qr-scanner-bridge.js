@@ -44,22 +44,38 @@
                 return;
             }
 
+            // Limpiar y preparar el contenedor
             mount.innerHTML = "";
+            mount.style.display = "flex";
+            mount.style.flexDirection = "column";
+            mount.style.alignItems = "center";
+            mount.style.justifyContent = "center";
+            mount.style.backgroundColor = "black";
+            mount.style.overflow = "hidden";
 
             const scanner = new Html5Qrcode(elementId);
             this.instance = scanner;
 
             const config = {
-                fps: 8,
+                fps: 15,
                 qrbox: function (viewWidth, viewHeight) {
-                    const size = Math.min(viewWidth, viewHeight) * 0.75;
+                    // Asegurar que el recuadro sea cuadrado y ocupe el 70% del lado más corto
+                    const size = Math.floor(Math.min(viewWidth, viewHeight) * 0.7);
                     return { width: size, height: size };
                 },
-                aspectRatio: 1.0,
+                aspectRatio: 1.0, // Sugerencia de aspecto cuadrado
             };
 
             const onReady = () => {
                 this.starting = false;
+                // Asegurar que el video ocupe el contenedor y esté centrado
+                const video = mount.querySelector('video');
+                if (video) {
+                    video.style.width = "100%";
+                    video.style.height = "100%";
+                    video.style.objectFit = "cover";
+                    video.style.transform = "scaleX(-1)"; // Espejo opcional para cámara frontal
+                }
                 window.dispatchEvent(new CustomEvent("kinetic-qr-ready"));
             };
 

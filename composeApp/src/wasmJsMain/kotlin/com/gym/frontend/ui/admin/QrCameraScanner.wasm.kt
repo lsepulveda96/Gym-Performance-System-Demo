@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,6 +69,7 @@ actual fun QrCameraScanner(
     onCodeScanned: (String) -> Unit,
     onError: (String) -> Unit
 ) {
+    val density = LocalDensity.current.density
     val elementId = remember { "kinetic-qr-mount-${(0..999_999).random()}" }
     var windowBounds by remember { mutableStateOf<WindowBounds?>(null) }
     var phase by remember { mutableStateOf(ScannerPhase.Idle) }
@@ -116,15 +118,22 @@ actual fun QrCameraScanner(
                 window.removeEventListener("kinetic-qr-scanned", scanListener)
                 window.removeEventListener("kinetic-qr-error", errorListener)
                 stopCameraHardware()
+                windowBounds = null
             }
         }
     }
 
-    LaunchedEffect(shouldRunCamera, windowBounds, startNonce) {
-        if (!shouldRunCamera || windowBounds == null || startNonce == 0) return@LaunchedEffect
+    LaunchedEffect(shouldRunCamera, startNonce) {
+        if (!shouldRunCamera || startNonce == 0) return@LaunchedEffect
+        
+        // Wait for windowBounds to be available
+        while (windowBounds == null) {
+            kotlinx.coroutines.delay(50)
+        }
+
         phase = ScannerPhase.Starting
         errorMessage = null
-        ensureOverlay(elementId, windowBounds!!)
+        ensureOverlay(elementId, windowBounds!!, density)
         kineticQrStart(elementId)
     }
 
@@ -154,14 +163,14 @@ actual fun QrCameraScanner(
                     )
                     val current = windowBounds
                     if (current == null ||
-                        kotlin.math.abs(current.left - next.left) > 2f ||
-                        kotlin.math.abs(current.top - next.top) > 2f ||
-                        kotlin.math.abs(current.width - next.width) > 2f ||
-                        kotlin.math.abs(current.height - next.height) > 2f
+                        kotlin.math.abs(current.left - next.left) > 1f ||
+                        kotlin.math.abs(current.top - next.top) > 1f ||
+                        kotlin.math.abs(current.width - next.width) > 1f ||
+                        kotlin.math.abs(current.height - next.height) > 1f
                     ) {
                         windowBounds = next
-                        if (shouldRunCamera && startNonce > 0 && phase == ScannerPhase.Scanning) {
-                            ensureOverlay(elementId, next)
+                        if (shouldRunCamera && startNonce > 0 && (phase == ScannerPhase.Scanning || phase == ScannerPhase.Starting)) {
+                            ensureOverlay(elementId, next, density)
                         }
                     }
                 }
@@ -355,7 +364,7 @@ private data class WindowBounds(
     val height: Float
 )
 
-private fun ensureOverlay(elementId: String, bounds: WindowBounds) {
+private fun ensureOverlay(elementId: String, bounds: WindowBounds, density: Float) {
     val overlay = (document.getElementById(elementId) as? HTMLDivElement)
         ?: (document.createElement("div") as HTMLDivElement).also { div ->
             div.id = elementId
@@ -363,10 +372,11 @@ private fun ensureOverlay(elementId: String, bounds: WindowBounds) {
         }
     val style = overlay.style
     style.position = "fixed"
-    style.left = "${bounds.left}px"
-    style.top = "${bounds.top}px"
-    style.width = "${bounds.width}px"
-    style.height = "${bounds.height}px"
+    // Importante: dividir por la densidad para convertir píxeles físicos de Compose a píxeles lógicos de CSS
+    style.left = "${bounds.left / density}px"
+    style.top = "${bounds.top / density}px"
+    style.width = "${bounds.width / density}px"
+    style.height = "${bounds.height / density}px"
     style.zIndex = "50"
     style.setProperty("overflow", "hidden")
     style.borderRadius = "16px"

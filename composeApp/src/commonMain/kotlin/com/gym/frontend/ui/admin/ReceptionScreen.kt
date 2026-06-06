@@ -113,6 +113,7 @@ fun ReceptionScreen(tokenManager: TokenManager = TokenManager()) {
 
                     QrCameraScanner(
                         modifier = Modifier
+                            .padding(vertical = 8.dp)
                             .fillMaxWidth()
                             .height(320.dp),
                         isActive = isCameraActive && validationResult == null && !isLoading,
