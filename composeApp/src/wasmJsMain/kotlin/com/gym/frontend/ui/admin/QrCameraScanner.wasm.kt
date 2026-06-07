@@ -123,18 +123,13 @@ actual fun QrCameraScanner(
         }
     }
 
-    LaunchedEffect(shouldRunCamera, startNonce) {
-        if (!shouldRunCamera || startNonce == 0) return@LaunchedEffect
-        
-        // Wait for windowBounds to be available
-        while (windowBounds == null) {
-            kotlinx.coroutines.delay(50)
+    LaunchedEffect(shouldRunCamera, windowBounds, startNonce) {
+        if (shouldRunCamera && windowBounds != null && startNonce > 0) {
+            phase = ScannerPhase.Starting
+            errorMessage = null
+            ensureOverlay(elementId, windowBounds!!, density)
+            kineticQrStart(elementId)
         }
-
-        phase = ScannerPhase.Starting
-        errorMessage = null
-        ensureOverlay(elementId, windowBounds!!, density)
-        kineticQrStart(elementId)
     }
 
     LaunchedEffect(isActive) {
@@ -372,14 +367,18 @@ private fun ensureOverlay(elementId: String, bounds: WindowBounds, density: Floa
         }
     val style = overlay.style
     style.position = "fixed"
-    // Importante: dividir por la densidad para convertir píxeles físicos de Compose a píxeles lógicos de CSS
-    style.left = "${bounds.left / density}px"
-    style.top = "${bounds.top / density}px"
-    style.width = "${bounds.width / density}px"
-    style.height = "${bounds.height / density}px"
-    style.zIndex = "50"
+    
+    // Convertir de píxeles de Compose (físicos) a píxeles de CSS (lógicos)
+    // Usamos el valor máximo entre la densidad de Compose y el ratio del navegador
+    val scale = if (density > 0f) density else window.devicePixelRatio.toFloat()
+    
+    style.left = "${bounds.left / scale}px"
+    style.top = "${bounds.top / scale}px"
+    style.width = "${bounds.width / scale}px"
+    style.height = "${bounds.height / scale}px"
+    style.zIndex = "100"
     style.setProperty("overflow", "hidden")
-    style.borderRadius = "16px"
+    style.borderRadius = "20px" // Coincidir con el Surface de Compose
     style.backgroundColor = "#000000"
     style.setProperty("pointer-events", "none")
 }
