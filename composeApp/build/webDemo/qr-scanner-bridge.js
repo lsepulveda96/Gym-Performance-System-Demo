@@ -54,54 +54,13 @@
             const side = Math.floor(Math.min(divW, divH) * 0.72);
 
             const config = {
-                fps: 25,
-                qrbox: { width: side, height: side }
-                // Sin aspectRatio — deja que la cámara use su ratio nativo.
-                // El video llenará el div con object-fit:cover (ver forceStrictStyles).
+                fps: 10,
+                qrbox: { width: side, height: side },
+                aspectRatio: divW / divH
             };
 
             const scanner = new Html5Qrcode(elementId);
             this.instance = scanner;
-
-            // ── Corrección de estilos internos de html5-qrcode ───────────────
-            const forceStrictStyles = () => {
-                const video  = mount.querySelector("video");
-                const canvas = mount.querySelector("canvas");
-                const region = mount.querySelector("#" + elementId + "__scan_region");
-
-                if (video) {
-                    video.style.setProperty("width",      "100%",     "important");
-                    video.style.setProperty("height",     "100%",     "important");
-                    video.style.setProperty("object-fit", "cover",    "important");
-                    video.style.setProperty("position",   "absolute", "important");
-                    video.style.setProperty("top",        "0",        "important");
-                    video.style.setProperty("left",       "0",        "important");
-                    video.style.setProperty("transform",  "none",     "important");
-                    video.style.setProperty("display",    "block",    "important");
-                }
-
-                if (canvas) {
-                    canvas.style.setProperty("width",      "100%",     "important");
-                    canvas.style.setProperty("height",     "100%",     "important");
-                    canvas.style.setProperty("position",   "absolute", "important");
-                    canvas.style.setProperty("top",        "0",        "important");
-                    canvas.style.setProperty("left",       "0",        "important");
-                    canvas.style.setProperty("object-fit", "cover",    "important");
-                    canvas.style.setProperty("z-index",    "1",        "important");
-                }
-
-                if (region) {
-                    region.style.setProperty("width",           "100%",     "important");
-                    region.style.setProperty("height",          "100%",     "important");
-                    region.style.setProperty("display",         "flex",     "important");
-                    region.style.setProperty("align-items",     "center",   "important");
-                    region.style.setProperty("justify-content", "center",   "important");
-                    region.style.setProperty("border",          "none",     "important");
-                    region.style.setProperty("position",        "absolute", "important");
-                    region.style.setProperty("top",             "0",        "important");
-                    region.style.setProperty("left",            "0",        "important");
-                }
-            };
 
             scanner.start(
                 { facingMode: "environment" },
@@ -116,10 +75,15 @@
                 () => {}
             ).then(() => {
                 this.starting = false;
-                forceStrictStyles();
-                if (this.observer) this.observer.disconnect();
-                this.observer = new MutationObserver(forceStrictStyles);
-                this.observer.observe(mount, { childList: true, subtree: true, attributes: true });
+                
+                // Asegurarse que el video tome 100% sin romper el canvas oculto
+                const video = mount.querySelector("video");
+                if (video) {
+                    video.style.width = "100%";
+                    video.style.height = "100%";
+                    video.style.objectFit = "cover";
+                }
+                
                 window.dispatchEvent(new CustomEvent("kinetic-qr-ready"));
             }).catch((err) => {
                 this.starting = false;
