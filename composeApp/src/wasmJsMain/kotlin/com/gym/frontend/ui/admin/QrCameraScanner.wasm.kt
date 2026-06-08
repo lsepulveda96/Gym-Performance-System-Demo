@@ -143,8 +143,11 @@ actual fun QrCameraScanner(
         }
     }
 
+    var initialStartDone by remember(shouldRunCamera, startNonce) { mutableStateOf(false) }
+
     LaunchedEffect(shouldRunCamera, windowBounds, startNonce) {
-        if (shouldRunCamera && windowBounds != null && startNonce > 0) {
+        if (shouldRunCamera && windowBounds != null && startNonce > 0 && !initialStartDone) {
+            initialStartDone = true
             phase = ScannerPhase.Starting
             errorMessage = null
             ensureOverlay(elementId, windowBounds!!, density)
