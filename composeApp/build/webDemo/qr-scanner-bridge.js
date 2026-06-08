@@ -51,12 +51,11 @@
             // offsetWidth/offsetHeight reflejan el tamaño fijado por ensureOverlay.
             const divW = mount.offsetWidth  || 320;
             const divH = mount.offsetHeight || 320;
-            const side = Math.floor(Math.min(divW, divH) * 0.72);
 
             const config = {
-                fps: 10,
-                qrbox: { width: side, height: side },
-                aspectRatio: divW / divH
+                fps: 10
+                // Al no especificar qrbox, html5-qrcode escaneará todo el frame de la cámara.
+                // Esto aumenta significativamente la probabilidad de detección.
             };
 
             const scanner = new Html5Qrcode(elementId);
@@ -66,8 +65,12 @@
                 { facingMode: "environment" },
                 config,
                 (decodedText) => {
+                    console.log("[KineticQrScanner] Decoded text:", decodedText);
                     const now = Date.now();
-                    if (decodedText === this.lastScan && now - this.lastScanAt < SCAN_COOLDOWN_MS) return;
+                    if (decodedText === this.lastScan && now - this.lastScanAt < SCAN_COOLDOWN_MS) {
+                        console.log("[KineticQrScanner] Ignored due to cooldown");
+                        return;
+                    }
                     this.lastScan    = decodedText;
                     this.lastScanAt  = now;
                     window.dispatchEvent(new CustomEvent("kinetic-qr-scanned", { detail: decodedText }));
@@ -119,10 +122,11 @@
 
     // ── Helpers para que Kotlin pueda calcular la posición CSS del overlay ──
     // Permite detectar si el canvas de Compose no está en (0,0) o tiene escala distinta.
-    window.kineticCanvasCssLeft  = () => { const c = document.querySelector("canvas"); return c ? c.getBoundingClientRect().left  : 0; };
-    window.kineticCanvasCssTop   = () => { const c = document.querySelector("canvas"); return c ? c.getBoundingClientRect().top   : 0; };
-    window.kineticCanvasCssWidth = () => { const c = document.querySelector("canvas"); return c ? c.getBoundingClientRect().width : window.innerWidth;  };
-    window.kineticCanvasCssHeight= () => { const c = document.querySelector("canvas"); return c ? c.getBoundingClientRect().height: window.innerHeight; };
-    window.kineticCanvasPhysWidth= () => { const c = document.querySelector("canvas"); return c ? c.width  : window.innerWidth;  };
-    window.kineticCanvasPhysHeight=() => { const c = document.querySelector("canvas"); return c ? c.height : window.innerHeight; };
+    const getComposeCanvas = () => document.querySelector("#compose-target canvas");
+    window.kineticCanvasCssLeft  = () => { const c = getComposeCanvas(); return c ? c.getBoundingClientRect().left  : 0; };
+    window.kineticCanvasCssTop   = () => { const c = getComposeCanvas(); return c ? c.getBoundingClientRect().top   : 0; };
+    window.kineticCanvasCssWidth = () => { const c = getComposeCanvas(); return c ? c.getBoundingClientRect().width : window.innerWidth;  };
+    window.kineticCanvasCssHeight= () => { const c = getComposeCanvas(); return c ? c.getBoundingClientRect().height: window.innerHeight; };
+    window.kineticCanvasPhysWidth= () => { const c = getComposeCanvas(); return c ? c.width  : window.innerWidth;  };
+    window.kineticCanvasPhysHeight=() => { const c = getComposeCanvas(); return c ? c.height : window.innerHeight; };
 })();
