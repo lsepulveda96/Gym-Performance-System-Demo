@@ -1,9 +1,19 @@
 # Gradle
 .gradle/
 
-# Build outputs
-build/
-**/build/
+# Build outputs — reglas ancladas para evitar conflictos con negaciones.
+# IMPORTANTE: composeApp/build/ NO está bloqueado globalmente porque
+# composeApp/build/webDemo/ debe ser trackeado (artefactos pre-compilados
+# para Cloudflare Pages, que no tiene toolchain Kotlin/WasmJs).
+/build/
+/server/build/
+/shared/build/
+
+# Ignorar todo dentro de composeApp/build/ EXCEPTO webDemo/
+/composeApp/build/*
+!/composeApp/build/webDemo
+/composeApp/build/webDemo/*
+!/composeApp/build/webDemo/**
 
 # Kotlin
 .kotlin/

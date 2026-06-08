@@ -55,6 +55,26 @@ private external fun kineticQrStop()
 @JsName("kineticQrReadDetail")
 private external fun kineticQrReadDetail(event: Event): String
 
+// Helpers para convertir coordenadas de Compose → CSS.
+// El canvas de Compose puede no estar en (0,0) y puede tener escala diferente a devicePixelRatio.
+@JsName("kineticCanvasCssLeft")
+private external fun kineticCanvasCssLeft(): Double
+
+@JsName("kineticCanvasCssTop")
+private external fun kineticCanvasCssTop(): Double
+
+@JsName("kineticCanvasCssWidth")
+private external fun kineticCanvasCssWidth(): Double
+
+@JsName("kineticCanvasCssHeight")
+private external fun kineticCanvasCssHeight(): Double
+
+@JsName("kineticCanvasPhysWidth")
+private external fun kineticCanvasPhysWidth(): Double
+
+@JsName("kineticCanvasPhysHeight")
+private external fun kineticCanvasPhysHeight(): Double
+
 private enum class ScannerPhase {
     Idle,
     Starting,
@@ -359,30 +379,55 @@ private data class WindowBounds(
     val height: Float
 )
 
+/**
+ * Crea o actualiza el div overlay en el DOM con la posición exacta del composable.
+ *
+ * En lugar de usar `density` directamente, obtenemos el rect CSS real del canvas de Compose
+ * y calculamos la escala correcta. Esto maneja casos donde:
+ * - El canvas no está en (0,0)
+ * - `density` de Compose != window.devicePixelRatio
+ * - Hay cualquier transform CSS sobre el canvas
+ */
 private fun ensureOverlay(elementId: String, bounds: WindowBounds, density: Float) {
     val overlay = (document.getElementById(elementId) as? HTMLDivElement)
         ?: (document.createElement("div") as HTMLDivElement).also { div ->
             div.id = elementId
             document.body!!.appendChild(div)
         }
+
+    // Obtener posición y tamaño CSS real del canvas de Compose
+    val canvasCssLeft  = kineticCanvasCssLeft().toFloat()
+    val canvasCssTop   = kineticCanvasCssTop().toFloat()
+    val canvasCssW     = kineticCanvasCssWidth().toFloat()
+    val canvasCssH     = kineticCanvasCssHeight().toFloat()
+    val canvasPhysW    = kineticCanvasPhysWidth().toFloat()
+    val canvasPhysH    = kineticCanvasPhysHeight().toFloat()
+
+    // Factor de escala: píxeles físicos del canvas → píxeles CSS del viewport.
+    // bounds.left/top/width/height están en píxeles físicos del canvas (= Compose px).
+    val scaleX = if (canvasPhysW > 0f) canvasCssW / canvasPhysW else (1f / density.coerceAtLeast(1f))
+    val scaleY = if (canvasPhysH > 0f) canvasCssH / canvasPhysH else (1f / density.coerceAtLeast(1f))
+
+    val cssLeft   = canvasCssLeft + bounds.left   * scaleX
+    val cssTop    = canvasCssTop  + bounds.top    * scaleY
+    val cssWidth  = bounds.width  * scaleX
+    val cssHeight = bounds.height * scaleY
+
     val style = overlay.style
-    style.position = "fixed"
-    
-    // Convertir de píxeles de Compose (físicos) a píxeles de CSS (lógicos)
-    // Usamos el valor máximo entre la densidad de Compose y el ratio del navegador
-    val scale = if (density > 0f) density else window.devicePixelRatio.toFloat()
-    
-    style.left = "${bounds.left / scale}px"
-    style.top = "${bounds.top / scale}px"
-    style.width = "${bounds.width / scale}px"
-    style.height = "${bounds.height / scale}px"
-    style.zIndex = "100"
-    style.setProperty("overflow", "hidden")
-    style.borderRadius = "20px" // Coincidir con el Surface de Compose
+    style.position        = "fixed"
+    style.left            = "${cssLeft}px"
+    style.top             = "${cssTop}px"
+    style.width           = "${cssWidth}px"
+    style.height          = "${cssHeight}px"
+    style.zIndex          = "100"
+    style.borderRadius    = "20px"   // Coincidir con el Surface de Compose
     style.backgroundColor = "#000000"
+    style.setProperty("overflow",       "hidden")
     style.setProperty("pointer-events", "none")
+    // NO setear display/flex/align aquí — lo maneja el JS bridge
 }
 
 private fun removeOverlay(elementId: String) {
     document.getElementById(elementId)?.remove()
 }
+
