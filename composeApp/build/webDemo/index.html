@@ -65,6 +65,25 @@
         window.kineticGetConfig  = (key) => { const v = window[key]; return (v === undefined || v === null) ? null : String(v); };
         window.kineticGetOrigin  = () => window.location.origin;
         window.kineticGetHostname = () => window.location.hostname;
+        
+        window.kineticGenerateQrMatrixString = function(text) {
+            try {
+                if (typeof qrcode === 'undefined') return "0:";
+                var qr = qrcode(0, 'M'); // 0 = auto size, M = medium error correction
+                qr.addData(text);
+                qr.make();
+                var size = qr.getModuleCount();
+                var res = size + ":";
+                for(var r=0; r<size; r++){
+                    for(var c=0; c<size; c++){
+                        res += qr.isDark(r, c) ? "1" : "0";
+                    }
+                }
+                return res;
+            } catch(e) {
+                return "0:";
+            }
+        };
 
         // Hide splash safely (without patching requestAnimationFrame).
         // Some browsers (or Wasm startup paths) can behave oddly when RAF is monkeypatched.
@@ -97,6 +116,7 @@
         })();
     </script>
 
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="qr-scanner-bridge.js"></script>
     <script src="composeApp.js"></script>
