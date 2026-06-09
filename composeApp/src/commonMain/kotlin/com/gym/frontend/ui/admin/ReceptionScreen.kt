@@ -39,6 +39,17 @@ fun ReceptionScreen(tokenManager: TokenManager = TokenManager()) {
     var qrInput by remember { mutableStateOf("") }
     var isCameraActive by remember { mutableStateOf(true) }
     var cameraErrorHint by remember { mutableStateOf<String?>(null) }
+    // Código escaneado pendiente de procesar (desacoplado del estado de la cámara)
+    var pendingScannedCode by remember { mutableStateOf<String?>(null) }
+
+    // Procesar código escaneado pendiente
+    LaunchedEffect(pendingScannedCode) {
+        val code = pendingScannedCode ?: return@LaunchedEffect
+        pendingScannedCode = null
+        if (code.trim().isNotEmpty()) {
+            viewModel.validateCode(code, fromCamera = true, scope = scope)
+        }
+    }
 
     // Show snackbar on error results
     LaunchedEffect(uiState) {
@@ -53,6 +64,13 @@ fun ReceptionScreen(tokenManager: TokenManager = TokenManager()) {
             return
         }
         viewModel.validateCode(code, fromCamera, scope)
+    }
+
+    fun onCameraScanned(code: String) {
+        cameraErrorHint = null
+        // Guardar el código en estado local para procesarlo via LaunchedEffect
+        // Esto evita la condición de carrera entre el event listener y el cambio de isActive
+        pendingScannedCode = code
     }
 
     fun clearResult() {
@@ -116,10 +134,15 @@ fun ReceptionScreen(tokenManager: TokenManager = TokenManager()) {
                             .padding(vertical = 8.dp)
                             .fillMaxWidth()
                             .height(320.dp),
-                        isActive = isCameraActive && validationResult == null && !isLoading,
+                        // La cámara se mantiene activa aunque esté validando o haya resultado
+                        // para evitar que el cambio de isActive remueva los listeners JS
+                        // en el medio del procesamiento de un scan.
+                        isActive = isCameraActive,
                         onCodeScanned = { code ->
-                            cameraErrorHint = null
-                            validateCode(code, fromCamera = true)
+                            // Solo aceptar nuevo scan si no hay uno en curso
+                            if (!isLoading && pendingScannedCode == null) {
+                                onCameraScanned(code)
+                            }
                         },
                         onError = { message ->
                             cameraErrorHint = message
