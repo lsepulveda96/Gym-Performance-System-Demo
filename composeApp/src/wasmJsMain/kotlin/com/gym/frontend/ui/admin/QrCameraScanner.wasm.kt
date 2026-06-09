@@ -164,8 +164,8 @@ actual fun QrCameraScanner(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF0A1214),
-        tonalElevation = 2.dp
+        color = Color.Transparent,
+        tonalElevation = 0.dp
     ) {
         Box(
             modifier = Modifier

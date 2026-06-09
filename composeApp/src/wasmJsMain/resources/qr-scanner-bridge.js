@@ -54,7 +54,11 @@
                 return;
             }
 
-            const config = { fps: 10 };
+            const config = { 
+                fps: 10,
+                aspectRatio: 1.0,
+                qrbox: { width: 250, height: 250 }
+            };
 
             const scanner = new Html5Qrcode(innerId);
             this.instance = scanner;
@@ -76,15 +80,6 @@
                 () => {}
             ).then(() => {
                 this.starting = false;
-                
-                // Asegurarse que el video tome 100% sin romper el canvas oculto
-                const video = mount.querySelector("video");
-                if (video) {
-                    video.style.width = "100%";
-                    video.style.height = "100%";
-                    video.style.objectFit = "cover";
-                }
-                
                 window.dispatchEvent(new CustomEvent("kinetic-qr-ready"));
             }).catch((err) => {
                 this.starting = false;
