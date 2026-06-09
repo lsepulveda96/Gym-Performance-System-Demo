@@ -31,10 +31,17 @@
             // ── Limpiar contenido previo ──────────────────────────────────────
             mount.innerHTML = "";
 
-            // ── Estilos visuales del contenedor ──────────────────────────────
-            // CRÍTICO: NO usar style.cssText aquí. Sobreescribiría position/left/top/
-            // width/height que Kotlin seteó en ensureOverlay(). Usar setProperty().
-            // Tampoco setear `position`, `width`, `height` —  son responsabilidad de Kotlin.
+            // ── Wrapper Interno ───────────────────────────────────────────────
+            // html5-qrcode sobreescribe los estilos del div que se le pasa.
+            // Para evitar que rompa el position:fixed de Compose, creamos un hijo.
+            const innerId = elementId + "-inner";
+            const innerDiv = document.createElement("div");
+            innerDiv.id = innerId;
+            innerDiv.style.width = "100%";
+            innerDiv.style.height = "100%";
+            mount.appendChild(innerDiv);
+
+            // ── Estilos visuales del contenedor (padre) ──────────────────────
             mount.style.setProperty("background-color", "#000000", "important");
             mount.style.setProperty("display", "flex", "important");
             mount.style.setProperty("align-items", "center", "important");
@@ -47,18 +54,9 @@
                 return;
             }
 
-            // ── Calcular qrbox cuadrado sobre las dimensiones reales del div ──
-            // offsetWidth/offsetHeight reflejan el tamaño fijado por ensureOverlay.
-            const divW = mount.offsetWidth  || 320;
-            const divH = mount.offsetHeight || 320;
+            const config = { fps: 10 };
 
-            const config = {
-                fps: 10
-                // Al no especificar qrbox, html5-qrcode escaneará todo el frame de la cámara.
-                // Esto aumenta significativamente la probabilidad de detección.
-            };
-
-            const scanner = new Html5Qrcode(elementId);
+            const scanner = new Html5Qrcode(innerId);
             this.instance = scanner;
 
             scanner.start(
