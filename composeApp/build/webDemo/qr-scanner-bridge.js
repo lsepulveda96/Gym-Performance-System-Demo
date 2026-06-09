@@ -55,9 +55,15 @@
             }
 
             const config = { 
-                fps: 10,
-                aspectRatio: 1.0,
-                qrbox: { width: 250, height: 250 }
+                fps: 15,
+                // qrbox como función: usa el 85% del área disponible (cuadrado centrado).
+                // Esto hace la lectura mucho más amplia y elimina la necesidad de
+                // alinear el código con precisión.
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                    const size = Math.floor(minEdge * 0.85);
+                    return { width: size, height: size };
+                }
             };
 
             const scanner = new Html5Qrcode(innerId);
