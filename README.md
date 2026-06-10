@@ -21,8 +21,7 @@ Modern gym management platform built with Kotlin Multiplatform.
 * Netlify
 
 Live Demo:
-https://stunning-puffpuff-4dc532.netlify.app/
-
+https://gym-performance-ecosystem.pages.dev/
 
 
 ## Architecture

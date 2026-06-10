@@ -1,5 +1,6 @@
 package com.gym.frontend.ui.admin
 
+import androidx.compose.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -183,90 +184,170 @@ fun MembersListHeader(
     val isDark = LocalIsDarkMode.current
     var showFilterMenu by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Column {
-            Text(
-                "Active Members",
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                "Manage your elite community at the Kinetic Atelier. Tracking performance and participation across the ecosystem.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.width(600.dp)
-            )
-        }
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // Punto de quiebre: si el ancho disponible es menor a 900dp, apilamos verticalmente
+        val isNarrow = maxWidth < 900.dp
 
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Search Bar
-            Surface(
-                modifier = Modifier.width(300.dp).height(48.dp),
-                color = if (isDark) Level1Section else MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(20.dp), tint = OnSurfaceDim)
-                    Spacer(Modifier.width(8.dp))
-                    androidx.compose.foundation.text.BasicTextField(
-                        value = searchQuery,
-                        onValueChange = onSearchQueryChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                        cursorBrush = androidx.compose.ui.graphics.SolidColor(TealPrimary),
-                        decorationBox = { innerTextField ->
-                            if (searchQuery.isEmpty()) Text("Search members...", color = OnSurfaceDim, style = MaterialTheme.typography.bodyMedium)
-                            innerTextField()
-                        }
+        if (isNarrow) {
+            // Layout vertical para pantallas angostas (720p, tabletas pequeñas, etc.)
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Título y subtítulo (sin ancho fijo)
+                Column {
+                    Text(
+                        "Active Members",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Manage your elite community at the Kinetic Atelier.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-            }
 
-            // Filter Button with Dropdown
-            Box {
-                Surface(
-                    modifier = Modifier.clickable { showFilterMenu = true },
-                    color = if (statusFilter != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else (if (isDark) Level1Section else MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(24.dp),
-                    border = if (statusFilter != null) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                // Controles en fila que se adaptan al ancho disponible
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(statusFilter ?: "Filters", style = MaterialTheme.typography.labelLarge, color = if (statusFilter != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    // Search Bar — ocupa el espacio restante
+                    Surface(
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        color = if (isDark) Level1Section else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = OnSurfaceDim)
+                            Spacer(Modifier.width(6.dp))
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(TealPrimary),
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) Text("Search...", color = OnSurfaceDim, style = MaterialTheme.typography.bodySmall)
+                                    innerTextField()
+                                }
+                            )
+                        }
+                    }
+
+                    // Filter Button
+                    Box {
+                        Surface(
+                            modifier = Modifier.clickable { showFilterMenu = true }.height(44.dp),
+                            color = if (statusFilter != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else (if (isDark) Level1Section else MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(24.dp),
+                            border = if (statusFilter != null) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(statusFilter ?: "Filter", style = MaterialTheme.typography.labelMedium, color = if (statusFilter != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = showFilterMenu,
+                            onDismissRequest = { showFilterMenu = false },
+                            modifier = Modifier.background(if (isDark) Level1Section else Color.White)
+                        ) {
+                            DropdownMenuItem(text = { Text("All Members") }, onClick = { onStatusFilterChange(null); showFilterMenu = false })
+                            DropdownMenuItem(text = { Text("Active") }, onClick = { onStatusFilterChange("ACTIVE"); showFilterMenu = false })
+                            DropdownMenuItem(text = { Text("Inactive") }, onClick = { onStatusFilterChange("INACTIVE"); showFilterMenu = false })
+                        }
+                    }
+
+                    // Add Button compacto
+                    Button(
+                        onClick = onAddMember,
+                        modifier = Modifier.height(44.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TealPrimary, contentColor = Color.Black),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
                     }
                 }
+            }
+        } else {
+            // Layout horizontal original para pantallas anchas (1080p, 1440p)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 24.dp)) {
+                    Text(
+                        "Active Members",
+                        style = MaterialTheme.typography.displayMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Manage your elite community at the Kinetic Atelier. Tracking performance and participation across the ecosystem.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
 
-                DropdownMenu(
-                    expanded = showFilterMenu,
-                    onDismissRequest = { showFilterMenu = false },
-                    modifier = Modifier.background(if (isDark) Level1Section else Color.White)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("All Members") },
-                        onClick = { onStatusFilterChange(null); showFilterMenu = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Active") },
-                        onClick = { onStatusFilterChange("ACTIVE"); showFilterMenu = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Inactive") },
-                        onClick = { onStatusFilterChange("INACTIVE"); showFilterMenu = false }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.width(300.dp).height(48.dp),
+                        color = if (isDark) Level1Section else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(20.dp), tint = OnSurfaceDim)
+                            Spacer(Modifier.width(8.dp))
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(TealPrimary),
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) Text("Search members...", color = OnSurfaceDim, style = MaterialTheme.typography.bodyMedium)
+                                    innerTextField()
+                                }
+                            )
+                        }
+                    }
+
+                    Box {
+                        Surface(
+                            modifier = Modifier.clickable { showFilterMenu = true },
+                            color = if (statusFilter != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else (if (isDark) Level1Section else MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(24.dp),
+                            border = if (statusFilter != null) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(statusFilter ?: "Filters", style = MaterialTheme.typography.labelLarge, color = if (statusFilter != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = showFilterMenu,
+                            onDismissRequest = { showFilterMenu = false },
+                            modifier = Modifier.background(if (isDark) Level1Section else Color.White)
+                        ) {
+                            DropdownMenuItem(text = { Text("All Members") }, onClick = { onStatusFilterChange(null); showFilterMenu = false })
+                            DropdownMenuItem(text = { Text("Active") }, onClick = { onStatusFilterChange("ACTIVE"); showFilterMenu = false })
+                            DropdownMenuItem(text = { Text("Inactive") }, onClick = { onStatusFilterChange("INACTIVE"); showFilterMenu = false })
+                        }
+                    }
+
+                    KineticButton(
+                        onClick = onAddMember,
+                        text = "+ Add Member",
+                        modifier = Modifier.width(180.dp).height(48.dp)
                     )
                 }
             }
-
-            KineticButton(
-                onClick = onAddMember,
-                text = "+ Add Member",
-                modifier = Modifier.width(180.dp).height(48.dp)
-            )
         }
     }
 }

@@ -17,6 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gym.frontend.ui.theme.*
 import com.gym.frontend.ui.shared.*
@@ -133,70 +135,97 @@ fun CheckInScreen(onDone: () -> Unit) {
 
                 Spacer(Modifier.height(32.dp))
 
-                // QR Section
+                // QR Section — height wraps content so timer is never clipped on small screens
                 Surface(
-                    modifier = Modifier.fillMaxWidth().height(340.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
                     color = MaterialTheme.colorScheme.surface
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (isLoading && qrToken == null) {
-                            CircularProgressIndicator(color = TealPrimary)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 200.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(color = TealPrimary)
+                            }
                         } else {
-                            // QR Frame
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(220.dp)) {
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    Box(modifier = Modifier.size(24.dp).align(Alignment.TopStart).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(topStart = 4.dp)))
-                                    Box(modifier = Modifier.size(24.dp).align(Alignment.TopEnd).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(topEnd = 4.dp)))
-                                    Box(modifier = Modifier.size(24.dp).align(Alignment.BottomStart).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(bottomStart = 4.dp)))
-                                    Box(modifier = Modifier.size(24.dp).align(Alignment.BottomEnd).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(bottomEnd = 4.dp)))
-                                }
-                                
-                                Surface(modifier = Modifier.size(180.dp), color = Color.White, shape = RoundedCornerShape(12.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        qrToken?.let { token ->
-                                            QRCodeView(
-                                                content = token.token,
-                                                modifier = Modifier.size(160.dp),
-                                                qrColor = Color.Black,
-                                                backgroundColor = Color.White
-                                            )
-                                        } ?: Icon(Icons.Outlined.QrCode, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(120.dp))
-                                        
-                                        if (isLoading) {
-                                            Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
-                                                CircularProgressIndicator(color = TealPrimary, modifier = Modifier.size(32.dp))
+                            // QR Frame — capped size, scales down on narrow screens
+                            BoxWithConstraints(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                val frameSize = minOf(maxWidth, 200.dp)
+                                val innerSize = frameSize * 0.82f
+                                val qrSize = frameSize * 0.73f
+
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(frameSize)) {
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        Box(modifier = Modifier.size(24.dp).align(Alignment.TopStart).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(topStart = 4.dp)))
+                                        Box(modifier = Modifier.size(24.dp).align(Alignment.TopEnd).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(topEnd = 4.dp)))
+                                        Box(modifier = Modifier.size(24.dp).align(Alignment.BottomStart).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(bottomStart = 4.dp)))
+                                        Box(modifier = Modifier.size(24.dp).align(Alignment.BottomEnd).border(width = 3.dp, color = TealPrimary, shape = RoundedCornerShape(bottomEnd = 4.dp)))
+                                    }
+
+                                    Surface(modifier = Modifier.size(innerSize), color = Color.White, shape = RoundedCornerShape(12.dp)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            qrToken?.let { token ->
+                                                QRCodeView(
+                                                    content = token.token,
+                                                    modifier = Modifier.size(qrSize),
+                                                    qrColor = Color.Black,
+                                                    backgroundColor = Color.White
+                                                )
+                                            } ?: Icon(Icons.Outlined.QrCode, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(frameSize * 0.55f))
+
+                                            if (isLoading) {
+                                                Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
+                                                    CircularProgressIndicator(color = TealPrimary, modifier = Modifier.size(32.dp))
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            Spacer(Modifier.height(16.dp))
-                            
                             // RAW TOKEN (For testing / copy-pasting)
                             qrToken?.let { token ->
                                 Text(
                                     text = token.token,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.background(Color.Gray.copy(alpha = 0.1f), RoundedCornerShape(4.dp)).padding(8.dp)
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.Gray.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
                                 )
                             }
 
-                            Spacer(Modifier.height(16.dp))
-                            
                             // Timer
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("EXPIRES IN", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("EXPIRES IN", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(
+                                    text = "$minutes:$seconds",
+                                    style = MaterialTheme.typography.displaySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDark) Color.White else Color(0xFF003D44),
+                                )
                             }
-                            Text("$minutes:$seconds", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = if (isDark) Color.White else Color(0xFF003D44))
                         }
                     }
                 }
